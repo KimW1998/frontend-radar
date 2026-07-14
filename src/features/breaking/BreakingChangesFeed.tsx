@@ -1,0 +1,132 @@
+import { Box, Chip, Link, Stack, Typography, useTheme } from '@mui/material'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import CodeIcon from '@mui/icons-material/Code'
+import type { BreakingChange } from '@/types'
+import { SectionCard } from '@/components/SectionCard'
+import { AiSummaryCard } from '@/components/AiSummaryCard'
+import { DetailCard } from '@/components/DetailCard'
+import { buildBreakingChangeDetail } from '@/lib/detail-builders'
+import { useFilterStore, matchesFilter } from '@/stores'
+import { cardSx, monoFont } from '@/theme'
+
+interface BreakingChangesFeedProps {
+  changes: BreakingChange[]
+}
+
+export function BreakingChangesFeed({ changes }: BreakingChangesFeedProps) {
+  const theme = useTheme()
+  const { activeFilters, searchQuery } = useFilterStore()
+
+  const filtered = changes.filter((c) =>
+    matchesFilter(c.categories, activeFilters, searchQuery, [
+      c.technology,
+      c.title,
+      c.whatChanged,
+      c.migrationGuidance,
+      ...(c.breakingApiChanges ?? []),
+    ]),
+  )
+
+  return (
+    <SectionCard
+      title="Breaking Changes Feed"
+      subtitle="Migration guidance for React, Vite, TypeScript, MUI, TanStack"
+      id="breaking-changes"
+    >
+      <Stack spacing={1.5}>
+        {filtered.length === 0 && (
+          <Typography variant="body2" sx={{ color: 'text.secondary', py: 2, textAlign: 'center' }}>
+            No breaking changes match current filters.
+          </Typography>
+        )}
+        {filtered.map((change) => (
+          <DetailCard key={change.id} detail={buildBreakingChangeDetail(change)} sx={{ ...cardSx(theme), pr: 5 }}>
+            <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+              <Chip
+                label={change.technology}
+                size="small"
+                sx={{ bgcolor: '#F9731618', color: '#F97316', fontWeight: 600 }}
+              />
+              <Chip
+                label={`v${change.version}`}
+                size="small"
+                sx={{ bgcolor: theme.tokens.surface.hover, fontFamily: monoFont, fontSize: '0.6875rem' }}
+              />
+              <Typography variant="body1" sx={{ fontWeight: 600, flex: 1 }}>
+                {change.title}
+              </Typography>
+              <Link
+                href={change.sourceUrl}
+                target="_blank"
+                rel="noopener"
+                onClick={(e) => e.stopPropagation()}
+                sx={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}
+              >
+                Docs <OpenInNewIcon sx={{ fontSize: 12 }} />
+              </Link>
+            </Stack>
+
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+              {change.whatChanged}
+            </Typography>
+
+            {change.breakingApiChanges && change.breakingApiChanges.length > 0 ? (
+              <Box sx={{ mb: 1.5 }}>
+                <Typography variant="caption" sx={{ color: '#F97316', fontWeight: 600, display: 'block', mb: 0.75 }}>
+                  Breaking API changes
+                </Typography>
+                <Stack component="ul" spacing={0.5} sx={{ m: 0, pl: 2 }}>
+                  {change.breakingApiChanges.slice(0, 4).map((item, i) => (
+                    <Typography key={i} component="li" variant="body2" sx={{ color: 'text.primary', lineHeight: 1.5 }}>
+                      {item}
+                    </Typography>
+                  ))}
+                </Stack>
+                {change.breakingApiChanges.length > 4 && (
+                  <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block' }}>
+                    +{change.breakingApiChanges.length - 4} more in details
+                  </Typography>
+                )}
+              </Box>
+            ) : (
+              <Box sx={{ mb: 1.5 }}>
+                <Stack direction="row" alignItems="center" spacing={0.5} mb={0.5}>
+                  <CodeIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Migration notes</Typography>
+                </Stack>
+                <Box
+                  component="pre"
+                  sx={{
+                    p: 1.5,
+                    bgcolor: theme.tokens.code.bg,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 2,
+                    fontFamily: monoFont,
+                    fontSize: '0.75rem',
+                    lineHeight: 1.5,
+                    overflow: 'auto',
+                    color: theme.tokens.code.text,
+                    m: 0,
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {change.codeExample}
+                </Box>
+              </Box>
+            )}
+
+            <Typography variant="body2" sx={{ color: 'text.primary', mb: 1.5 }}>
+              <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>
+                Migration:{' '}
+              </Typography>
+              {change.migrationGuidance}
+            </Typography>
+
+            <AiSummaryCard summary={change.summary} compact />
+          </DetailCard>
+        ))}
+      </Stack>
+    </SectionCard>
+  )
+}
