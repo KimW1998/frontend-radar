@@ -1,5 +1,3 @@
-import type { AiSummary } from '@/types'
-
 export interface DetailField {
   label: string
   value: string
@@ -40,7 +38,6 @@ export interface DetailContent {
   breakingApiChanges?: string[]
   sections?: DetailSection[]
   links?: DetailLink[]
-  summary?: AiSummary
   codeBlock?: string
   sourceUrl?: string
   sourceLabel?: string

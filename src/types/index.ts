@@ -20,8 +20,6 @@ export const FilterCategorySchema = z.enum([
   'typescript',
   'node',
   'testing',
-  'browser-apis',
-  'typo3',
   'ui-libraries',
   'infrastructure',
 ])
@@ -122,33 +120,6 @@ export const NodeStatusSchema = z.object({
 })
 export type NodeStatus = z.infer<typeof NodeStatusSchema>
 
-export const Typo3UpdateSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  type: z.enum(['release', 'security', 'typoscript', 'deprecation', 'upgrade-guide']),
-  version: z.string().optional(),
-  summary: z.string(),
-  sourceUrl: z.string(),
-  publishedAt: z.string(),
-  categories: z.array(FilterCategorySchema),
-  aiSummary: AiSummarySchema,
-})
-export type Typo3Update = z.infer<typeof Typo3UpdateSchema>
-
-export const BrowserUpdateSchema = z.object({
-  id: z.string(),
-  browser: z.enum(['chrome', 'edge', 'firefox', 'safari']),
-  version: z.string(),
-  title: z.string(),
-  type: z.enum(['breaking', 'new-api', 'security', 'css-support']),
-  summary: z.string(),
-  sourceUrl: z.string(),
-  publishedAt: z.string(),
-  categories: z.array(FilterCategorySchema),
-  aiSummary: AiSummarySchema,
-})
-export type BrowserUpdate = z.infer<typeof BrowserUpdateSchema>
-
 export const ExecutiveActionSchema = z.object({
   id: z.string(),
   type: z.enum(['security', 'dependency', 'breaking', 'deprecation', 'recommendation']),
@@ -194,8 +165,6 @@ export const DashboardDataSchema = z.object({
   securityAlerts: z.array(SecurityAlertSchema),
   breakingChanges: z.array(BreakingChangeSchema),
   nodeStatus: NodeStatusSchema,
-  typo3Updates: z.array(Typo3UpdateSchema),
-  browserUpdates: z.array(BrowserUpdateSchema),
   executiveActions: z.array(ExecutiveActionSchema),
   healthScore: HealthScoreSchema,
   dataSources: z.array(DataSourceStatusSchema),
@@ -215,8 +184,6 @@ export const FILTER_LABELS: Record<FilterCategory, string> = {
   typescript: 'TypeScript',
   node: 'Node',
   testing: 'Testing',
-  'browser-apis': 'Browser APIs',
-  typo3: 'TYPO3',
   'ui-libraries': 'UI Libraries',
   infrastructure: 'Infrastructure',
 }

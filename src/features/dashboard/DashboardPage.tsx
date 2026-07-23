@@ -1,14 +1,11 @@
 import { Box, CircularProgress, Typography } from '@mui/material'
 import { FilterBar } from '@/components/FilterBar'
-import { DataSourcesPanel } from '@/features/data-sources/DataSourcesPanel'
 import { ExecutiveSummary } from '@/features/executive/ExecutiveSummary'
 import { HealthScoreWidget } from '@/features/health/HealthScoreWidget'
 import { DependencyWatchlist } from '@/features/dependencies/DependencyWatchlist'
 import { NodeUpgradeCenter } from '@/features/node/NodeUpgradeCenter'
 import { SecurityCenter } from '@/features/security/SecurityCenter'
 import { BreakingChangesFeed } from '@/features/breaking/BreakingChangesFeed'
-import { Typo3Watch } from '@/features/typo3/Typo3Watch'
-import { BrowserEcosystem } from '@/features/browser/BrowserEcosystem'
 import { useDashboardData } from '@/hooks/useDashboardData'
 
 export function DashboardPage() {
@@ -46,8 +43,6 @@ export function DashboardPage() {
         </Typography>
       )}
 
-      <DataSourcesPanel sources={data.dataSources} />
-
       <Box id="health-score">
         <HealthScoreWidget healthScore={data.healthScore} />
       </Box>
@@ -57,8 +52,6 @@ export function DashboardPage() {
       <NodeUpgradeCenter nodeStatus={data.nodeStatus} />
       <SecurityCenter alerts={data.securityAlerts} />
       <BreakingChangesFeed changes={data.breakingChanges} />
-      <Typo3Watch updates={data.typo3Updates} />
-      <BrowserEcosystem updates={data.browserUpdates} />
     </>
   )
 }

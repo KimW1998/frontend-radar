@@ -1,6 +1,6 @@
 # Frontend Radar
 
-Developer intelligence dashboard for senior frontend engineers. Monitors your daily stack — React, TypeScript, Vite, TanStack, MUI, Node.js, TYPO3, and more — surfacing only actionable information.
+Developer intelligence dashboard for senior frontend engineers. Monitors your daily stack — React, TypeScript, Vite, TanStack, MUI, Node.js, and more — surfacing only actionable information.
 
 ## Features
 
@@ -9,11 +9,8 @@ Developer intelligence dashboard for senior frontend engineers. Monitors your da
 - **Node.js Upgrade Center** — LTS status, support dates, migration guidance
 - **Security Center** — CVEs, GitHub advisories, supply chain alerts
 - **Breaking Changes Feed** — Migration guidance with code examples
-- **TYPO3 Watch** — Releases, security advisories, TypoScript changes
-- **Frontend Ecosystem** — Browser breaking changes, new APIs, CSS support
-- **AI Summary Engine** — Bite-sized summaries with upgrade urgency
 - **Dependency Health Score** — Weighted 0–100 score with recommended actions
-- **Filters** — Security, React, TypeScript, Node, Testing, Browser APIs, TYPO3, UI Libraries, Infrastructure
+- **Filters** — Security, React, TypeScript, Node, Testing, UI Libraries, Infrastructure
 
 ## Stack
 
@@ -41,11 +38,6 @@ No mock data. The dashboard fetches everything from public APIs at runtime:
 | **OSV** | `api.osv.dev/v1/query` | CVEs/vulnerabilities per configured package version |
 | **Node.js Dist** | `nodejs.org/dist/index.json` | LTS and current release versions |
 | **endoflife.date** | `endoflife.date/api/v1/products/nodejs` | Node support/EOL dates |
-
-**Unavailable from browser (shown as empty):**
-- TYPO3 news/security — HTML only, no CORS JSON API
-- Browser release notes — no unified CORS-enabled API
-- AI summaries — rule-based from API data, not LLM-generated
 
 Configure your installed versions in **Settings** to enable vulnerability checks and upgrade recommendations.
 

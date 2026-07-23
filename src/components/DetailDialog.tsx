@@ -15,7 +15,6 @@ import {
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
-import { AiSummaryCard } from '@/components/AiSummaryCard'
 import { useDetailEnrichment } from '@/hooks/useDetailEnrichment'
 import { useDetailStore } from '@/stores/detail'
 import type { DetailSection } from '@/types/detail'
@@ -249,12 +248,6 @@ export function DetailDialog() {
             >
               {content.codeBlock}
             </Box>
-          </Box>
-        )}
-
-        {content.summary && (
-          <Box sx={{ mb: 2 }}>
-            <AiSummaryCard summary={content.summary} />
           </Box>
         )}
 

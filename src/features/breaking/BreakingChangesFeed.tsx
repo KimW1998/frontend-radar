@@ -3,7 +3,6 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import CodeIcon from '@mui/icons-material/Code'
 import type { BreakingChange } from '@/types'
 import { SectionCard } from '@/components/SectionCard'
-import { AiSummaryCard } from '@/components/AiSummaryCard'
 import { DetailCard } from '@/components/DetailCard'
 import { buildBreakingChangeDetail } from '@/lib/detail-builders'
 import { useFilterStore, matchesFilter } from '@/stores'
@@ -116,14 +115,12 @@ export function BreakingChangesFeed({ changes }: BreakingChangesFeedProps) {
               </Box>
             )}
 
-            <Typography variant="body2" sx={{ color: 'text.primary', mb: 1.5 }}>
+            <Typography variant="body2" sx={{ color: 'text.primary' }}>
               <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>
                 Migration:{' '}
               </Typography>
               {change.migrationGuidance}
             </Typography>
-
-            <AiSummaryCard summary={change.summary} compact />
           </DetailCard>
         ))}
       </Stack>

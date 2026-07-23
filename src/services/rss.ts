@@ -33,7 +33,7 @@ export const RSS_FEEDS: RssFeedConfig[] = [
     url: 'https://www.joshwcomeau.com/rss.xml',
     technology: 'Frontend',
     tone: 'deep-dive',
-    categories: ['react', 'ui-libraries', 'browser-apis'],
+    categories: ['react', 'ui-libraries'],
   },
   {
     id: 'devto-react',
@@ -94,11 +94,21 @@ export interface RssItem {
 }
 
 export async function fetchRssFeed(url: string): Promise<RssItem[]> {
+  try {
+    const proxyResponse = await fetch(`/api/rss?url=${encodeURIComponent(url)}`, {
+      headers: { Accept: 'application/xml, text/xml, */*' },
+    })
+    if (proxyResponse.ok) {
+      return parseRss(await proxyResponse.text())
+    }
+  } catch {
+    // Proxy unavailable (local dev without netlify dev)
+  }
+
   const response = await fetch(url, { headers: { Accept: 'application/xml, text/xml, */*' } })
   if (!response.ok) throw new Error(`RSS fetch failed: HTTP ${response.status}`)
 
-  const xml = await response.text()
-  return parseRss(xml)
+  return parseRss(await response.text())
 }
 
 function parseRss(xml: string): RssItem[] {

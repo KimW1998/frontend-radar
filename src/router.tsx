@@ -12,7 +12,7 @@ function RootComponent() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isReading = pathname === '/news' || pathname === '/tanstack'
 
-  const dashboard = useDashboardData(!isReading)
+  const dashboard = useDashboardData(true)
   const knowledge = useKnowledgeData(isReading)
 
   const active = isReading ? knowledge : dashboard
@@ -22,6 +22,7 @@ function RootComponent() {
       onRefresh={() => active.refetch()}
       isRefreshing={active.isFetching}
       lastUpdated={active.data?.lastUpdated}
+      dataSources={dashboard.data?.dataSources}
     >
       <Outlet />
     </AppLayout>

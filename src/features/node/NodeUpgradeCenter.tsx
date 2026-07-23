@@ -4,7 +4,6 @@ import WarningIcon from '@mui/icons-material/Warning'
 import ErrorIcon from '@mui/icons-material/Error'
 import type { NodeStatus } from '@/types'
 import { SectionCard } from '@/components/SectionCard'
-import { AiSummaryCard } from '@/components/AiSummaryCard'
 import { DetailCard } from '@/components/DetailCard'
 import { StatBox } from '@/components/Badges'
 import { buildNodeDetail } from '@/lib/detail-builders'
@@ -102,8 +101,6 @@ export function NodeUpgradeCenter({ nodeStatus }: NodeUpgradeCenterProps) {
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>Security Implications</Typography>
             <Typography variant="body2">{nodeStatus.securityImplications}</Typography>
           </DetailCard>
-
-          <AiSummaryCard summary={nodeStatus.summary} compact />
         </Stack>
       </Box>
     </SectionCard>

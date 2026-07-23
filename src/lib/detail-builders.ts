@@ -1,13 +1,11 @@
 import type {
   BreakingChange,
-  BrowserUpdate,
   DataSourceStatus,
   Dependency,
   ExecutiveAction,
   NodeStatus,
   RecommendedAction,
   SecurityAlert,
-  Typo3Update,
 } from '@/types'
 import { FILTER_LABELS, RISK_COLORS, SEVERITY_COLORS, URGENCY_LABELS } from '@/types'
 import type { DetailContent, DetailField, DetailSection } from '@/types/detail'
@@ -109,7 +107,6 @@ export function buildDependencyDetail(dep: Dependency): DetailContent {
       body: dep.releaseNotesSummary,
       sections,
       links: dep.npmPackage ? npmLinks(dep.npmPackage, dep.sourceUrl) : undefined,
-      summary: dep.summary,
       sourceUrl: dep.sourceUrl,
       sourceLabel: 'View releases',
       enrich: dep.npmPackage ? { type: 'npm-package', packageName: dep.npmPackage } : undefined,
@@ -153,7 +150,6 @@ export function buildSecurityDetail(alert: SecurityAlert): DetailContent {
         url: `https://www.npmjs.com/advisories?search=${encodeURIComponent(alert.affectedPackage)}`,
       },
     ],
-    summary: alert.summary,
     sourceUrl: alert.sourceUrl,
     sourceLabel: 'View advisory',
     enrich: { type: 'npm-package', packageName: alert.affectedPackage },
@@ -187,7 +183,6 @@ export function buildBreakingChangeDetail(change: BreakingChange): DetailContent
       sections,
       codeBlock: change.breakingApiChanges?.length ? undefined : change.codeExample,
       bullets: change.breakingApiChanges?.length ? undefined : [change.migrationGuidance],
-      summary: change.summary,
       sourceUrl: change.sourceUrl,
       sourceLabel: 'Read migration docs',
     },
@@ -278,7 +273,6 @@ export function buildNodeDetail(status: NodeStatus): DetailContent {
         content: status.securityImplications,
       },
     ],
-    summary: status.summary,
     links: [
       { label: 'Node release schedule', url: 'https://nodejs.org/en/about/previous-releases' },
       { label: 'Node.js dist index', url: 'https://nodejs.org/dist/index.json' },
@@ -308,15 +302,22 @@ export function buildDataSourceDetail(source: DataSourceStatus): DetailContent {
     ],
     body: source.message,
     sections:
-      source.status === 'unavailable'
+      source.id === 'github-releases' && source.status !== 'ok'
         ? [
             {
-              title: 'Why unavailable',
+              title: 'How to fix GitHub releases',
               content:
-                'This data source cannot be queried directly from the browser (CORS, HTML-only pages, or no public API). A backend proxy or RSS parser would be needed to include this data.',
+                '1. Deploy on Netlify (or run `netlify dev` locally).\n2. Add GITHUB_TOKEN in Site settings → Environment variables (read-only PAT).\n3. Redeploy. One batch call fetches all watchlist repos via /api/github-releases.',
             },
           ]
-        : undefined,
+        : source.status === 'unavailable'
+          ? [
+              {
+                title: 'Why unavailable',
+                content: 'This data source is not configured or has no mapped endpoints.',
+              },
+            ]
+          : undefined,
   }
 }
 
@@ -335,59 +336,5 @@ export function buildArticleDetail(article: KnowledgeArticle): DetailContent {
     ],
     sourceUrl: article.sourceUrl,
     sourceLabel: 'Read full article',
-  }
-}
-
-export function buildTypo3Detail(update: Typo3Update): DetailContent {
-  const typeColors: Record<Typo3Update['type'], string> = {
-    release: '#3B82F6',
-    security: '#EF4444',
-    typoscript: '#8B5CF6',
-    deprecation: '#EAB308',
-    'upgrade-guide': '#22C55E',
-  }
-
-  return {
-    title: update.title,
-    subtitle: update.version ? `v${update.version}` : update.type.replace('-', ' '),
-    badge: { label: update.type.replace('-', ' '), color: typeColors[update.type] },
-    tags: update.categories.map((c) => FILTER_LABELS[c]),
-    fields: [
-      { label: 'Type', value: update.type.replace('-', ' ') },
-      ...(update.version ? [{ label: 'Version', value: update.version, mono: true }] : []),
-      { label: 'Published', value: update.publishedAt },
-      { label: 'Urgency', value: URGENCY_LABELS[update.aiSummary.upgradeUrgency] },
-    ],
-    body: update.summary,
-    summary: update.aiSummary,
-    sourceUrl: update.sourceUrl,
-    sourceLabel: 'View TYPO3 update',
-  }
-}
-
-export function buildBrowserDetail(update: BrowserUpdate): DetailContent {
-  const typeColors: Record<BrowserUpdate['type'], string> = {
-    breaking: '#F97316',
-    'new-api': '#3B82F6',
-    security: '#EF4444',
-    'css-support': '#22C55E',
-  }
-
-  return {
-    title: update.title,
-    subtitle: `${update.browser} · v${update.version}`,
-    badge: { label: update.type.replace('-', ' '), color: typeColors[update.type] },
-    tags: update.categories.map((c) => FILTER_LABELS[c]),
-    fields: [
-      { label: 'Browser', value: update.browser },
-      { label: 'Version', value: update.version, mono: true },
-      { label: 'Type', value: update.type.replace('-', ' ') },
-      { label: 'Published', value: update.publishedAt },
-      { label: 'Urgency', value: URGENCY_LABELS[update.aiSummary.upgradeUrgency] },
-    ],
-    body: update.summary,
-    summary: update.aiSummary,
-    sourceUrl: update.sourceUrl,
-    sourceLabel: 'View release notes',
   }
 }

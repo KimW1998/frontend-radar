@@ -106,7 +106,7 @@ export const CURATED_READING_LIST: CuratedSource[] = [
     description: 'Beautiful explainers on CSS, React, and how the web actually works.',
     url: 'https://www.joshwcomeau.com/',
     emoji: '✨',
-    topics: ['react', 'ui-libraries', 'browser-apis'],
+    topics: ['react', 'ui-libraries'],
   },
   {
     id: 'devto',

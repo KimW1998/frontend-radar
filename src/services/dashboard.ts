@@ -11,14 +11,15 @@ import type {
 } from '@/types'
 import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
 import { extractBreakingApiChanges } from '@/services/breaking-changes'
-import { fetchGitHubLatestRelease, summarizeReleaseBody } from '@/services/github'
+import { fetchGitHubReleasesBatch, summarizeReleaseBody, toGitHubFetchResult, type GitHubReleaseInfo } from '@/services/github'
 import { fetchNpmLatest } from '@/services/npm'
 import { fetchNodeStatus } from '@/services/node'
 import { fetchPackageVulnerabilities, type PackageVulnerability } from '@/services/osv'
 import { buildSummary, estimateReadingTime } from '@/services/summary'
-import { toSourceStatus } from '@/services/http'
+import { toSourceStatus, type FetchResult } from '@/services/http'
 import { isBehind, isMajorBump, maxVersion } from '@/services/semver'
 import { calculateHealthScore } from '@/services/health'
+import { fetchDataHealth } from '@/services/api'
 
 interface DashboardInput {
   configuredVersions: Record<string, string>
@@ -57,12 +58,16 @@ function determineUrgency(risk: RiskLevel, vulnCount: number): UpgradeUrgency {
 async function buildDependency(
   pkg: (typeof WATCHLIST_PACKAGES)[number],
   configuredVersions: Record<string, string>,
-): Promise<{ dependency: Dependency | null; vulns: PackageVulnerability[] }> {
+  githubBatch: Awaited<ReturnType<typeof fetchGitHubReleasesBatch>>,
+): Promise<{
+  dependency: Dependency | null
+  vulns: PackageVulnerability[]
+  githubResult: FetchResult<GitHubReleaseInfo> | null
+}> {
   const currentVersion = configuredVersions[pkg.npmPackage]?.trim() || ''
 
-  const [npmResult, githubResult, vulnResult] = await Promise.all([
+  const [npmResult, vulnResult] = await Promise.all([
     fetchNpmLatest(pkg.npmPackage),
-    pkg.githubRepo ? fetchGitHubLatestRelease(pkg.githubRepo) : Promise.resolve(null),
     currentVersion
       ? fetchPackageVulnerabilities(pkg.npmPackage, currentVersion)
       : Promise.resolve({
@@ -75,7 +80,9 @@ async function buildDependency(
         }),
   ])
 
-  if (!npmResult.data) return { dependency: null, vulns: [] }
+  const githubResult = pkg.githubRepo ? toGitHubFetchResult(pkg.githubRepo, githubBatch) : null
+
+  if (!npmResult.data) return { dependency: null, vulns: [], githubResult: githubResult ?? null }
 
   const latestVersion = npmResult.data
   const vulns = vulnResult.data ?? []
@@ -137,7 +144,7 @@ async function buildDependency(
     ),
   }
 
-  return { dependency, vulns }
+  return { dependency, vulns, githubResult }
 }
 
 function buildSecurityAlerts(
@@ -276,47 +283,34 @@ function buildExecutiveActions(
   return actions.slice(0, 8)
 }
 
-const UNAVAILABLE_SOURCES: DataSourceStatus[] = [
-  {
-    id: 'typo3',
-    name: 'TYPO3 News / Security',
-    endpoint: 'https://typo3.org / https://news.typo3.com',
-    status: 'unavailable',
-    message: 'No public JSON/RSS API with browser CORS. HTML pages only.',
-    itemCount: 0,
-  },
-  {
-    id: 'browsers',
-    name: 'Browser Release Notes',
-    endpoint: 'Chrome / Firefox / Safari / Edge blogs',
-    status: 'unavailable',
-    message: 'No unified CORS-enabled API for browser changelogs.',
-    itemCount: 0,
-  },
-  {
-    id: 'ai-engine',
-    name: 'AI Summary Engine',
-    endpoint: 'N/A',
-    status: 'unavailable',
-    message: 'Summaries are rule-based from fetched API data, not LLM-generated.',
-    itemCount: 0,
-  },
-]
-
 export async function fetchDashboardData(input: DashboardInput): Promise<DashboardData> {
   const dataSources: DataSourceStatus[] = []
   const dependencies: Dependency[] = []
   const securityAlerts: SecurityAlert[] = []
-  const breakingChanges: BreakingChange[] = []
+
+  const githubRepos = [
+    ...new Set(WATCHLIST_PACKAGES.map((pkg) => pkg.githubRepo).filter(Boolean) as string[]),
+  ]
+
+  const [githubBatch, dataHealth, nodeBundle] = await Promise.all([
+    fetchGitHubReleasesBatch(githubRepos),
+    fetchDataHealth(),
+    fetchNodeStatus(input.nodeVersion),
+  ])
 
   const depResults = await Promise.all(
     WATCHLIST_PACKAGES.map(async (pkg) => {
-      const result = await buildDependency(pkg, input.configuredVersions)
-      if (result.dependency) dependencies.push(result.dependency)
-      securityAlerts.push(...buildSecurityAlerts(pkg, result.vulns))
+      const result = await buildDependency(pkg, input.configuredVersions, githubBatch)
       return { pkg, result }
     }),
   )
+
+  const breakingChanges: BreakingChange[] = []
+
+  for (const { pkg, result } of depResults) {
+    if (result.dependency) dependencies.push(result.dependency)
+    securityAlerts.push(...buildSecurityAlerts(pkg, result.vulns))
+  }
 
   dataSources.push({
     id: 'npm-registry',
@@ -327,14 +321,37 @@ export async function fetchDashboardData(input: DashboardInput): Promise<Dashboa
     itemCount: dependencies.length,
   })
 
-  const githubFetches = depResults.filter((r) => r.pkg.githubRepo)
+  const githubResults = depResults
+    .filter((r) => r.pkg.githubRepo)
+    .map((r) => r.result.githubResult)
+    .filter(Boolean) as FetchResult<GitHubReleaseInfo>[]
+  const githubOk = githubResults.filter((r) => r.status === 'ok' && r.data).length
+  const githubTotal = depResults.filter((r) => r.pkg.githubRepo).length
+
+  let githubStatus: DataSourceStatus['status'] = 'error'
+  let githubMessage = 'GitHub release fetch failed'
+
+  if (githubTotal === 0) {
+    githubStatus = 'unavailable'
+    githubMessage = 'No GitHub repos mapped in watchlist'
+  } else if (githubOk === githubTotal) {
+    githubStatus = dataHealth?.githubToken || githubBatch.authenticated ? 'ok' : 'partial'
+    githubMessage =
+      dataHealth?.githubToken || githubBatch.authenticated
+        ? `${githubOk}/${githubTotal} release notes via /api/github-releases`
+        : `${githubOk}/${githubTotal} fetched — set GITHUB_TOKEN on Netlify for 5000 req/hr`
+  } else if (githubOk > 0) {
+    githubStatus = 'partial'
+    githubMessage = `${githubOk}/${githubTotal} release notes fetched`
+  }
+
   dataSources.push({
     id: 'github-releases',
     name: 'GitHub Releases',
-    endpoint: 'https://api.github.com/repos/{owner}/{repo}/releases/latest',
-    status: 'partial',
-    message: `Release notes fetched per package (rate limit: 60 req/hr unauthenticated)`,
-    itemCount: githubFetches.length,
+    endpoint: '/api/github-releases?repos={owner}/{repo},…',
+    status: githubStatus,
+    message: githubMessage,
+    itemCount: githubOk,
   })
 
   dataSources.push({
@@ -348,14 +365,12 @@ export async function fetchDashboardData(input: DashboardInput): Promise<Dashboa
 
   for (const { pkg, result } of depResults) {
     if (!result.dependency?.breakingChanges || !pkg.githubRepo) continue
-    const gh = await fetchGitHubLatestRelease(pkg.githubRepo)
-    const bc = buildBreakingChanges(pkg, result.dependency, gh.data?.body ?? null)
+    const bc = buildBreakingChanges(pkg, result.dependency, result.githubResult?.data?.body ?? null)
     if (bc) breakingChanges.push(bc)
   }
 
-  const { nodeStatus, sources: nodeSources } = await fetchNodeStatus(input.nodeVersion)
+  const { nodeStatus, sources: nodeSources } = nodeBundle
   dataSources.push(...nodeSources.map(toSourceStatus))
-  dataSources.push(...UNAVAILABLE_SOURCES)
 
   const healthScore: HealthScore = calculateHealthScore(
     dependencies,
@@ -398,8 +413,6 @@ export async function fetchDashboardData(input: DashboardInput): Promise<Dashboa
         urgency: 'this-sprint',
       }),
     },
-    typo3Updates: [],
-    browserUpdates: [],
     executiveActions,
     healthScore,
     dataSources,

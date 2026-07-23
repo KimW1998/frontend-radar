@@ -9,8 +9,6 @@ const ALL_FILTERS: FilterCategory[] = [
   'typescript',
   'node',
   'testing',
-  'browser-apis',
-  'typo3',
   'ui-libraries',
   'infrastructure',
 ]

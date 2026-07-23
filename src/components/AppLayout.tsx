@@ -20,10 +20,11 @@ import HubIcon from '@mui/icons-material/Hub'
 import SettingsIcon from '@mui/icons-material/Settings'
 import MenuIcon from '@mui/icons-material/Menu'
 import RefreshIcon from '@mui/icons-material/Refresh'
-import CloudIcon from '@mui/icons-material/Cloud'
 import LightModeIcon from '@mui/icons-material/LightMode'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
+import { DataSourcesIndicator } from '@/components/DataSourcesIndicator'
 import { DetailDialog } from '@/components/DetailDialog'
+import type { DataSourceStatus } from '@/types'
 import { Link, useRouterState } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { useUiStore } from '@/stores'
@@ -38,15 +39,12 @@ const NAV_ITEMS = [
 ]
 
 const SECTION_LINKS = [
-  { label: 'Data Sources', hash: '#data-sources' },
   { label: 'Executive Summary', hash: '#executive-summary' },
   { label: 'Health Score', hash: '#health-score' },
   { label: 'Dependencies', hash: '#dependency-watchlist' },
   { label: 'Node.js', hash: '#node-upgrade' },
   { label: 'Security', hash: '#security-center' },
   { label: 'Breaking Changes', hash: '#breaking-changes' },
-  { label: 'TYPO3', hash: '#typo3-watch' },
-  { label: 'Browsers', hash: '#browser-ecosystem' },
 ]
 
 interface AppLayoutProps {
@@ -54,9 +52,10 @@ interface AppLayoutProps {
   onRefresh?: () => void
   isRefreshing?: boolean
   lastUpdated?: string
+  dataSources?: DataSourceStatus[]
 }
 
-export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated }: AppLayoutProps) {
+export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, dataSources }: AppLayoutProps) {
   const theme = useTheme()
   const { sidebarOpen, toggleSidebar, colorMode, toggleColorMode } = useUiStore()
   const routerState = useRouterState()
@@ -170,21 +169,16 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated }: Ap
         )}
 
         <Box sx={{ mt: 'auto', p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-          <Stack direction="row" alignItems="center" spacing={0.5} mb={1.5}>
-            <CloudIcon sx={{ fontSize: 16, color: 'success.main' }} />
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              Live APIs only — no mock data
-            </Typography>
-          </Stack>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Stack direction="row" alignItems="center" spacing={0.5}>
+            <Stack direction="row" alignItems="center" spacing={0.75}>
+              <DataSourcesIndicator sources={dataSources} />
               {colorMode === 'dark' ? (
                 <DarkModeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
               ) : (
                 <LightModeIcon sx={{ fontSize: 16, color: 'warning.main' }} />
               )}
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {colorMode === 'dark' ? 'Dark mode' : 'Light mode'}
+                {colorMode === 'dark' ? 'Dark' : 'Light'}
               </Typography>
             </Stack>
             <Switch size="small" checked={colorMode === 'light'} onChange={toggleColorMode} />

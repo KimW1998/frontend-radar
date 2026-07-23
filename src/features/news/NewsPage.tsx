@@ -35,7 +35,6 @@ const TOPIC_FILTERS: FilterCategory[] = [
   'testing',
   'ui-libraries',
   'infrastructure',
-  'browser-apis',
 ]
 
 export function NewsPage() {

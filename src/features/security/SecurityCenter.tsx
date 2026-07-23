@@ -3,7 +3,6 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import type { SecurityAlert } from '@/types'
 import { SectionCard } from '@/components/SectionCard'
 import { SeverityBadge } from '@/components/Badges'
-import { AiSummaryCard } from '@/components/AiSummaryCard'
 import { DetailCard } from '@/components/DetailCard'
 import { buildSecurityDetail } from '@/lib/detail-builders'
 import { useFilterStore, matchesFilter } from '@/stores'
@@ -76,8 +75,6 @@ export function SecurityCenter({ alerts }: SecurityCenterProps) {
                 </Link>
               </Box>
             </Box>
-
-            <AiSummaryCard summary={alert.summary} compact />
           </DetailCard>
         ))}
       </Stack>

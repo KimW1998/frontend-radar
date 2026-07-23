@@ -4,7 +4,6 @@ import type { Dependency } from '@/types'
 import { RISK_COLORS } from '@/types'
 import { SectionCard } from '@/components/SectionCard'
 import { RiskBadge } from '@/components/Badges'
-import { AiSummaryCard } from '@/components/AiSummaryCard'
 import { DetailCard } from '@/components/DetailCard'
 import { buildDependencyDetail } from '@/lib/detail-builders'
 import { useFilterStore, matchesFilter } from '@/stores'
@@ -109,11 +108,9 @@ export function DependencyWatchlist({ dependencies }: DependencyWatchlistProps) 
               </Box>
             )}
 
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               {dep.releaseNotesSummary}
             </Typography>
-
-            <AiSummaryCard summary={dep.summary} compact />
           </DetailCard>
         ))}
       </Stack>
