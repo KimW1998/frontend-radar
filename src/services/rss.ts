@@ -8,6 +8,7 @@ export interface RssFeedConfig {
   technology: string
   tone: ArticleTone
   categories: FilterCategory[]
+  section: 'read' | 'tanstack'
 }
 
 export const RSS_FEEDS: RssFeedConfig[] = [
@@ -18,6 +19,7 @@ export const RSS_FEEDS: RssFeedConfig[] = [
     technology: 'React',
     tone: 'official',
     categories: ['react'],
+    section: 'read',
   },
   {
     id: 'overreacted',
@@ -26,6 +28,7 @@ export const RSS_FEEDS: RssFeedConfig[] = [
     technology: 'React',
     tone: 'deep-dive',
     categories: ['react'],
+    section: 'read',
   },
   {
     id: 'joshwcomeau',
@@ -34,6 +37,7 @@ export const RSS_FEEDS: RssFeedConfig[] = [
     technology: 'Frontend',
     tone: 'deep-dive',
     categories: ['react', 'ui-libraries'],
+    section: 'read',
   },
   {
     id: 'devto-react',
@@ -42,6 +46,7 @@ export const RSS_FEEDS: RssFeedConfig[] = [
     technology: 'Community',
     tone: 'community',
     categories: ['react'],
+    section: 'read',
   },
   {
     id: 'devto-typescript',
@@ -50,6 +55,7 @@ export const RSS_FEEDS: RssFeedConfig[] = [
     technology: 'TypeScript',
     tone: 'community',
     categories: ['typescript'],
+    section: 'read',
   },
   {
     id: 'devto-frontend',
@@ -58,6 +64,7 @@ export const RSS_FEEDS: RssFeedConfig[] = [
     technology: 'Frontend',
     tone: 'community',
     categories: ['react', 'ui-libraries', 'infrastructure'],
+    section: 'read',
   },
   {
     id: 'devto-javascript',
@@ -66,6 +73,7 @@ export const RSS_FEEDS: RssFeedConfig[] = [
     technology: 'JavaScript',
     tone: 'community',
     categories: ['react', 'typescript', 'infrastructure'],
+    section: 'read',
   },
   {
     id: 'tkdodo',
@@ -74,6 +82,7 @@ export const RSS_FEEDS: RssFeedConfig[] = [
     technology: 'TanStack Query',
     tone: 'deep-dive',
     categories: ['react', 'infrastructure'],
+    section: 'tanstack',
   },
   {
     id: 'devto-tanstack',
@@ -82,6 +91,7 @@ export const RSS_FEEDS: RssFeedConfig[] = [
     technology: 'TanStack',
     tone: 'community',
     categories: ['react', 'infrastructure'],
+    section: 'tanstack',
   },
 ]
 

@@ -20,6 +20,7 @@ export const KnowledgeArticleSchema = z.object({
   readTimeMinutes: z.number(),
   topics: z.array(FilterCategorySchema),
   tone: ArticleToneSchema,
+  section: z.enum(['read', 'tanstack']).optional(),
 })
 export type KnowledgeArticle = z.infer<typeof KnowledgeArticleSchema>
 
@@ -35,9 +36,11 @@ export type CuratedSource = z.infer<typeof CuratedSourceSchema>
 
 export const KnowledgeDataSchema = z.object({
   articles: z.array(KnowledgeArticleSchema),
+  readArticles: z.array(KnowledgeArticleSchema),
+  tanStackArticles: z.array(KnowledgeArticleSchema),
+  releaseArticles: z.array(KnowledgeArticleSchema),
   curatedSources: z.array(CuratedSourceSchema),
   tanStackSources: z.array(CuratedSourceSchema),
-  tanStackArticles: z.array(KnowledgeArticleSchema),
   lastUpdated: z.string(),
 })
 export type KnowledgeData = z.infer<typeof KnowledgeDataSchema>

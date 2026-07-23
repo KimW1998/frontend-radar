@@ -2,6 +2,7 @@ import type { FilterCategory } from '@/types'
 import type { ArticleTone, KnowledgeArticle, KnowledgeData } from '@/types/knowledge'
 import { CURATED_READING_LIST, TANSTACK_READING_LIST } from '@/types/knowledge'
 import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
+import { apiUrl } from '@/services/api'
 import { fetchJson } from '@/services/http'
 import { summarizeReleaseBody } from '@/services/github'
 import {
@@ -29,20 +30,12 @@ const RELEVANCE_KEYWORDS = [
 
 const TANSTACK_REPOS = new Set(['TanStack/query', 'TanStack/router', 'TanStack/table', 'TanStack/start'])
 
-const TANSTACK_KEYWORDS =
-  /\btanstack\b|@tanstack\/|react-query|react-router|tanstack\s+(query|router|table|start)|tkdodo|usequery|usemutation|createrootroute|loader\s+function/i
-
-function isTanStackArticle(article: KnowledgeArticle): boolean {
-  const text = `${article.title} ${article.excerpt} ${article.source} ${article.id}`
-  return TANSTACK_KEYWORDS.test(text) || [...TANSTACK_REPOS].some((repo) => article.id.includes(repo))
-}
-
 export function isTanStackKnowledgeArticle(article: KnowledgeArticle): boolean {
-  return isTanStackArticle(article)
+  return article.section === 'tanstack'
 }
 
-function selectTanStackArticles(articles: KnowledgeArticle[]): KnowledgeArticle[] {
-  return articles.filter(isTanStackArticle).slice(0, 12)
+export function isReleaseKnowledgeArticle(article: KnowledgeArticle): boolean {
+  return article.tone === 'release'
 }
 
 function isRelevantToStack(title: string, excerpt: string): boolean {
@@ -50,11 +43,12 @@ function isRelevantToStack(title: string, excerpt: string): boolean {
   return RELEVANCE_KEYWORDS.some((k) => text.includes(k))
 }
 
-async function fetchRssArticles(): Promise<KnowledgeArticle[]> {
+async function fetchRssArticlesForSection(section: 'read' | 'tanstack'): Promise<KnowledgeArticle[]> {
+  const feeds = RSS_FEEDS.filter((feed) => feed.section === section)
   const articles: KnowledgeArticle[] = []
 
   await Promise.all(
-    RSS_FEEDS.map(async (feed) => {
+    feeds.map(async (feed) => {
       try {
         const items = await fetchRssFeed(feed.url)
         for (const item of items.slice(0, 5)) {
@@ -71,15 +65,33 @@ async function fetchRssArticles(): Promise<KnowledgeArticle[]> {
             readTimeMinutes: estimateReadMinutes(`${item.title} ${item.description}`),
             topics: feed.categories,
             tone: feed.tone,
+            section: feed.section,
           })
         }
       } catch {
-        // Feed unreachable from browser
+        // Feed unreachable — proxy may be unavailable in local dev
       }
     }),
   )
 
   return articles
+}
+
+async function fetchReleaseList(repo: string, perPage: number): Promise<GitHubReleaseListItem[]> {
+  try {
+    const response = await fetch(
+      apiUrl('/github-release-history', { repo, per_page: String(perPage) }),
+    )
+    if (response.ok) {
+      return (await response.json()) as GitHubReleaseListItem[]
+    }
+  } catch {
+    // Proxy unavailable
+  }
+
+  return fetchJson<GitHubReleaseListItem[]>(
+    `https://api.github.com/repos/${repo}/releases?per_page=${perPage}`,
+  )
 }
 
 async function fetchReleaseArticles(): Promise<KnowledgeArticle[]> {
@@ -99,8 +111,7 @@ async function fetchReleaseArticles(): Promise<KnowledgeArticle[]> {
     Array.from(uniqueRepos.values()).map(async ({ repo, name, categories }) => {
       try {
         const perPage = TANSTACK_REPOS.has(repo) ? 3 : 2
-        const endpoint = `https://api.github.com/repos/${repo}/releases?per_page=${perPage}`
-        const releases = await fetchJson<GitHubReleaseListItem[]>(endpoint)
+        const releases = await fetchReleaseList(repo, perPage)
         return releases
           .filter((r) => !r.prerelease)
           .map((release) => {
@@ -117,6 +128,7 @@ async function fetchReleaseArticles(): Promise<KnowledgeArticle[]> {
               readTimeMinutes: estimateReadMinutes(body || release.tag_name),
               topics: categories,
               tone: 'release' as ArticleTone,
+              section: TANSTACK_REPOS.has(repo) ? ('tanstack' as const) : ('read' as const),
             }
           })
       } catch {
@@ -154,18 +166,26 @@ function sortByDate(articles: KnowledgeArticle[]): KnowledgeArticle[] {
 }
 
 export async function fetchKnowledgeData(): Promise<KnowledgeData> {
-  const [rssArticles, releaseArticles] = await Promise.all([
-    fetchRssArticles(),
+  const [readRss, tanStackRss, releaseArticles] = await Promise.all([
+    fetchRssArticlesForSection('read'),
+    fetchRssArticlesForSection('tanstack'),
     fetchReleaseArticles(),
   ])
 
-  const articles = sortByDate(dedupeArticles([...rssArticles, ...releaseArticles]))
+  const readArticles = sortByDate(dedupeArticles(readRss))
+  const tanStackRssArticles = sortByDate(dedupeArticles(tanStackRss))
+  const sortedReleases = sortByDate(dedupeArticles(releaseArticles))
+  const releaseNotes = sortedReleases
+  const tanStackReleases = sortedReleases.filter((a) => a.section === 'tanstack')
+  const tanStackArticles = sortByDate(dedupeArticles([...tanStackRssArticles, ...tanStackReleases]))
 
   return {
-    articles,
+    articles: readArticles,
+    readArticles,
+    tanStackArticles,
+    releaseArticles: releaseNotes,
     curatedSources: CURATED_READING_LIST,
     tanStackSources: TANSTACK_READING_LIST,
-    tanStackArticles: selectTanStackArticles(articles),
     lastUpdated: new Date().toISOString(),
   }
 }

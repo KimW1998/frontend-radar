@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import {
   Box,
   CircularProgress,
+  Collapse,
   Drawer,
   IconButton,
   List,
@@ -16,12 +18,16 @@ import {
 import RadarIcon from '@mui/icons-material/Radar'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import NewspaperIcon from '@mui/icons-material/Newspaper'
+import NewReleasesIcon from '@mui/icons-material/NewReleases'
 import HubIcon from '@mui/icons-material/Hub'
 import SettingsIcon from '@mui/icons-material/Settings'
 import MenuIcon from '@mui/icons-material/Menu'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import LightModeIcon from '@mui/icons-material/LightMode'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
+import ExpandLessIcon from '@mui/icons-material/ExpandLess'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import AutoStoriesIcon from '@mui/icons-material/AutoStories'
 import { DataSourcesIndicator } from '@/components/DataSourcesIndicator'
 import { DetailDialog } from '@/components/DetailDialog'
 import type { DataSourceStatus } from '@/types'
@@ -29,14 +35,39 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { useUiStore } from '@/stores'
 
-const DRAWER_WIDTH = 240
+const DRAWER_WIDTH = 260
 
-const NAV_ITEMS = [
-  { label: 'Dashboard', path: '/', icon: <DashboardIcon sx={{ fontSize: 20 }} /> },
-  { label: 'Read', path: '/news', icon: <NewspaperIcon sx={{ fontSize: 20 }} /> },
-  { label: 'TanStack', path: '/tanstack', icon: <HubIcon sx={{ fontSize: 20 }} /> },
-  { label: 'Settings', path: '/settings', icon: <SettingsIcon sx={{ fontSize: 20 }} /> },
+interface NavChild {
+  label: string
+  path: string
+  icon: ReactNode
+}
+
+interface NavGroup {
+  id: string
+  label: string
+  icon: ReactNode
+  children: NavChild[]
+}
+
+const TOP_NAV = [{ label: 'Dashboard', path: '/', icon: <DashboardIcon sx={{ fontSize: 20 }} /> }]
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: 'reading',
+    label: 'Reading',
+    icon: <AutoStoriesIcon sx={{ fontSize: 20 }} />,
+    children: [
+      { label: 'Articles', path: '/news', icon: <NewspaperIcon sx={{ fontSize: 18 }} /> },
+      { label: 'Release notes', path: '/news/releases', icon: <NewReleasesIcon sx={{ fontSize: 18 }} /> },
+      { label: 'TanStack', path: '/tanstack', icon: <HubIcon sx={{ fontSize: 18 }} /> },
+    ],
+  },
 ]
+
+const BOTTOM_NAV = [{ label: 'Settings', path: '/settings', icon: <SettingsIcon sx={{ fontSize: 20 }} /> }]
+
+const READING_PATHS = ['/news', '/news/releases', '/tanstack']
 
 const SECTION_LINKS = [
   { label: 'Executive Summary', hash: '#executive-summary' },
@@ -59,7 +90,15 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
   const theme = useTheme()
   const { sidebarOpen, toggleSidebar, colorMode, toggleColorMode } = useUiStore()
   const routerState = useRouterState()
-  const isDashboard = routerState.location.pathname === '/'
+  const pathname = routerState.location.pathname
+  const isDashboard = pathname === '/'
+  const isReadingSection = READING_PATHS.includes(pathname)
+
+  const [readingOpen, setReadingOpen] = useState(isReadingSection)
+
+  useEffect(() => {
+    if (isReadingSection) setReadingOpen(true)
+  }, [isReadingSection])
 
   return (
     <Box
@@ -115,13 +154,85 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
         </Box>
 
         <List sx={{ px: 1, py: 1 }}>
-          {NAV_ITEMS.map((item) => (
+          {TOP_NAV.map((item) => (
             <ListItemButton
               key={item.path}
               component={Link}
               to={item.path}
-              selected={routerState.location.pathname === item.path}
+              selected={pathname === item.path}
               sx={{ borderRadius: 2, mb: 0.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: 32, color: 'text.secondary' }}>{item.icon}</ListItemIcon>
+              <ListItemText
+                primary={item.label}
+                slotProps={{ primary: { fontSize: '0.8125rem', fontWeight: 500 } }}
+              />
+            </ListItemButton>
+          ))}
+
+          {NAV_GROUPS.map((group) => {
+            const groupActive = group.children.some((child) => pathname === child.path)
+            const open = group.id === 'reading' ? readingOpen : false
+
+            return (
+              <Box key={group.id} sx={{ mb: 0.5 }}>
+                <ListItemButton
+                  onClick={() => setReadingOpen((prev) => !prev)}
+                  selected={groupActive}
+                  sx={{
+                    borderRadius: 2,
+                    bgcolor: groupActive ? 'action.selected' : undefined,
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 32, color: groupActive ? 'primary.main' : 'text.secondary' }}>
+                    {group.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={group.label}
+                    slotProps={{ primary: { fontSize: '0.8125rem', fontWeight: 600 } }}
+                  />
+                  {open ? (
+                    <ExpandLessIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                  ) : (
+                    <ExpandMoreIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                  )}
+                </ListItemButton>
+
+                <Collapse in={open} timeout="auto" unmountOnExit>
+                  <List component="div" disablePadding sx={{ pl: 1 }}>
+                    {group.children.map((child) => (
+                      <ListItemButton
+                        key={child.path}
+                        component={Link}
+                        to={child.path}
+                        selected={pathname === child.path}
+                        sx={{
+                          borderRadius: 2,
+                          mb: 0.25,
+                          pl: 2.5,
+                          minHeight: 36,
+                        }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 28, color: 'text.secondary' }}>{child.icon}</ListItemIcon>
+                        <ListItemText
+                          primary={child.label}
+                          slotProps={{ primary: { fontSize: '0.75rem', fontWeight: 500 } }}
+                        />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                </Collapse>
+              </Box>
+            )
+          })}
+
+          {BOTTOM_NAV.map((item) => (
+            <ListItemButton
+              key={item.path}
+              component={Link}
+              to={item.path}
+              selected={pathname === item.path}
+              sx={{ borderRadius: 2, mb: 0.5, mt: 0.5 }}
             >
               <ListItemIcon sx={{ minWidth: 32, color: 'text.secondary' }}>{item.icon}</ListItemIcon>
               <ListItemText

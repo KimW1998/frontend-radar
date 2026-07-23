@@ -4,7 +4,7 @@ export default async () => {
   const githubToken = Boolean(Netlify.env.get('GITHUB_TOKEN'))
   return Response.json({
     githubToken,
-    proxies: ['github-releases'],
+    proxies: ['github-releases', 'github-release-history', 'rss'],
   })
 }
 

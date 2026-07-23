@@ -93,8 +93,13 @@ export function TanStackPage() {
 
         {filteredArticles.length === 0 ? (
           <Box sx={{ ...cardSx(theme), textAlign: 'center', py: 4 }}>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              {searchQuery ? 'No articles match your search.' : 'No TanStack articles loaded — use the doc links on the right.'}
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+              {searchQuery ? 'No articles match your search.' : 'No TanStack articles loaded yet.'}
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.disabled' }}>
+              {searchQuery
+                ? 'Try a different search term.'
+                : 'RSS and GitHub release feeds load via Netlify functions. Use the doc links on the right.'}
             </Typography>
           </Box>
         ) : (

@@ -3,6 +3,7 @@ import { useRouterState } from '@tanstack/react-router'
 import { AppLayout } from '@/components/AppLayout'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { NewsPage } from '@/features/news/NewsPage'
+import { ReleaseNotesPage } from '@/features/news/ReleaseNotesPage'
 import { TanStackPage } from '@/features/news/TanStackPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { useDashboardData } from '@/hooks/useDashboardData'
@@ -10,7 +11,7 @@ import { useKnowledgeData } from '@/hooks/useKnowledgeData'
 
 function RootComponent() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const isReading = pathname === '/news' || pathname === '/tanstack'
+  const isReading = pathname === '/news' || pathname === '/news/releases' || pathname === '/tanstack'
 
   const dashboard = useDashboardData(true)
   const knowledge = useKnowledgeData(isReading)
@@ -45,6 +46,12 @@ const newsRoute = createRoute({
   component: NewsPage,
 })
 
+const releaseNotesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/news/releases',
+  component: ReleaseNotesPage,
+})
+
 const tanStackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/tanstack',
@@ -57,7 +64,7 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, newsRoute, tanStackRoute, settingsRoute])
+const routeTree = rootRoute.addChildren([indexRoute, newsRoute, releaseNotesRoute, tanStackRoute, settingsRoute])
 
 export const router = createRouter({ routeTree })
 
