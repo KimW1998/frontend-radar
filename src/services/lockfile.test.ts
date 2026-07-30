@@ -17,6 +17,21 @@ describe('parseLockfileInput', () => {
     expect(result.versions['react-dom']).toBe('19.0.0')
   })
 
+  it('parses npm dependencies map', () => {
+    const result = parseLockfileInput(
+      JSON.stringify({
+        packages: {
+          'node_modules/react': {
+            version: '19.0.0',
+            dependencies: { 'loose-envify': '^1.1.0' },
+          },
+        },
+      }),
+    )
+
+    expect(result.dependencies.react).toEqual(['loose-envify'])
+  })
+
   it('parses yarn.lock version blocks', () => {
     const result = parseLockfileInput(`
 "react@^19.0.0":

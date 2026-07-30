@@ -26,6 +26,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useDashboardRefreshOnSettingsChange } from '@/hooks/useDashboardRefreshOnSettingsChange'
 import { useActiveProject } from '@/hooks/useActiveProject'
 import { ProjectWatchlistEditor } from '@/components/ProjectWatchlistEditor'
+import { GitHubSyncCard } from '@/components/GitHubSyncCard'
 import { NodeVersionFields } from '@/components/NodeVersionFields'
 import { getConfiguredPackageCount, useTrackedPackageCount } from '@/lib/section-empty'
 import { getConfiguredPackageCountForProject, getTrackedPackages } from '@/lib/watchlist'
@@ -236,6 +237,8 @@ export function SettingsPage() {
               />
             </CardContent>
           </Card>
+
+          <GitHubSyncCard projectName={activeProject.name} githubSync={activeProject.githubSync} />
 
           <Card sx={{ mb: 3 }}>
             <CardContent>

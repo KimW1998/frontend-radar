@@ -10,20 +10,34 @@ export function apiUrl(path: string, params?: Record<string, string>): string {
   return url.pathname + url.search
 }
 
-export async function fetchApiText(path: string, params?: Record<string, string>): Promise<Response> {
-  return fetch(apiUrl(path, params))
+export async function fetchApiText(
+  path: string,
+  params?: Record<string, string>,
+  options?: { accessToken?: string | null },
+): Promise<Response> {
+  const headers: Record<string, string> = {}
+  if (options?.accessToken) {
+    headers.Authorization = `Bearer ${options.accessToken}`
+  }
+  return fetch(apiUrl(path, params), { headers })
 }
 
-export async function fetchApiJson<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const response = await fetchApiText(path, params)
+export async function fetchApiJson<T>(
+  path: string,
+  params?: Record<string, string>,
+  options?: { accessToken?: string | null },
+): Promise<T> {
+  const response = await fetchApiText(path, params, options)
   if (!response.ok) {
-    throw new Error(`API ${path} failed: HTTP ${response.status}`)
+    const body = await response.text()
+    throw new Error(body.slice(0, 200) || `API ${path} failed: HTTP ${response.status}`)
   }
   return (await response.json()) as T
 }
 
 export interface DataHealth {
   githubToken: boolean
+  githubOAuth: boolean
   proxies: string[]
 }
 

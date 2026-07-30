@@ -9,6 +9,12 @@ export {
 
 export { useUpgradePlanStore } from '@/stores/upgrade-plan-store'
 
+export {
+  useGitHubAuthStore,
+  selectGitHubAccessToken,
+  selectIsGitHubConnected,
+} from '@/stores/github-auth-store'
+
 interface FilterState {
   activeFilters: FilterCategory[]
   searchQuery: string

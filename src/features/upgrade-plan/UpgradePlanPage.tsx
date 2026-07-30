@@ -18,10 +18,10 @@ export function UpgradePlanPage() {
   const { stackQuery, isError, isFetching, isRefetching, refetch } = useDashboardData()
 
   const stackReady = Boolean(stackQuery.data)
-  const initialLoad = !stackReady && stackQuery.isLoading
+  const initialLoad = Boolean(activeProject) && !stackReady && stackQuery.isFetching
 
   if (!activeProject) {
-    return <Navigate to="/onboarding" />
+    return <Navigate to="/onboarding" replace />
   }
 
   if (initialLoad) {

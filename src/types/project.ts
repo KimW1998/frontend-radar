@@ -1,6 +1,8 @@
 import { DEFAULT_TRACKED_PACKAGE_IDS } from '@/lib/watchlist'
 import type { CustomPackageEntry } from '@/types/custom-package'
 import type { DriftReport, ImportSnapshot } from '@/types/import-snapshot'
+import type { GitHubSyncConfig } from '@/types/github-sync'
+import type { LockfileGraphSnapshot } from '@/types/lockfile-graph'
 
 export interface Project {
   id: string
@@ -18,6 +20,10 @@ export interface Project {
   importSnapshot?: ImportSnapshot
   /** Latest drift comparison (paste updated lockfile/package.json) */
   lastDriftReport?: DriftReport
+  /** Parsed lockfile dependency graph from last import */
+  lockfileGraph?: LockfileGraphSnapshot
+  /** GitHub repository auto-sync configuration */
+  githubSync?: GitHubSyncConfig
   createdAt: string
   updatedAt: string
 }

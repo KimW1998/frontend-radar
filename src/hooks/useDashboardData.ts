@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
-import { useActiveProjectVersions } from '@/hooks/useActiveProject'
 import {
   buildExecutiveActions,
   fetchDashboardNodeSection,
@@ -9,22 +8,44 @@ import {
 import { calculateHealthScore } from '@/services/health'
 import { getConfiguredPackageCount } from '@/lib/section-empty'
 import { useSettingsStore } from '@/stores'
+import type { CustomPackageEntry } from '@/types/custom-package'
 
 const STALE_TIME = 5 * 60 * 1000
 const REFETCH_INTERVAL = 15 * 60 * 1000
+const EMPTY_VERSIONS: Record<string, string> = {}
+const EMPTY_TRACKED_IDS: string[] = []
+const EMPTY_CUSTOM_PACKAGES: CustomPackageEntry[] = []
 
 export function useDashboardData(enabled = true) {
   const queryClient = useQueryClient()
   const activeProjectId = useSettingsStore((s) => s.activeProjectId)
-  const { configuredVersions, nodeVersion } = useActiveProjectVersions()
-  const trackedPackageIds = useSettingsStore(
-    (s) => s.projects.find((p) => p.id === s.activeProjectId)?.trackedPackageIds ?? [],
+  const activeProject = useSettingsStore((s) =>
+    s.activeProjectId ? s.projects.find((p) => p.id === s.activeProjectId) : undefined,
   )
-  const customPackages = useSettingsStore(
-    (s) => s.projects.find((p) => p.id === s.activeProjectId)?.customPackages ?? [],
+  const nodeVersion = activeProject?.nodeVersion ?? ''
+  const trackedPackageIds = activeProject?.trackedPackageIds ?? EMPTY_TRACKED_IDS
+  const customPackages = activeProject?.customPackages ?? EMPTY_CUSTOM_PACKAGES
+  const lockfileGraph = activeProject?.lockfileGraph
+  const stableConfiguredVersions = activeProject?.configuredVersions ?? EMPTY_VERSIONS
+  const input = useMemo(
+    () => ({
+      configuredVersions: stableConfiguredVersions,
+      nodeVersion,
+      trackedPackageIds,
+      customPackages,
+      lockfileGraph,
+    }),
+    [stableConfiguredVersions, nodeVersion, trackedPackageIds, customPackages, lockfileGraph],
   )
-  const input = { configuredVersions, nodeVersion, trackedPackageIds, customPackages }
-  const queryKeyBase = ['dashboard', activeProjectId, configuredVersions, nodeVersion, trackedPackageIds, customPackages] as const
+  const queryKeyBase = useMemo(
+    () =>
+      [
+        'dashboard',
+        activeProjectId,
+        lockfileGraph?.capturedAt ?? null,
+      ] as const,
+    [activeProjectId, lockfileGraph?.capturedAt],
+  )
   const isQueryEnabled = enabled && Boolean(activeProjectId)
 
   const [nodeQuery, stackQuery] = useQueries({
@@ -46,7 +67,7 @@ export function useDashboardData(enabled = true) {
     ],
   })
 
-  const isConfigured = getConfiguredPackageCount(configuredVersions, trackedPackageIds, customPackages) > 0
+  const isConfigured = getConfiguredPackageCount(stableConfiguredVersions, trackedPackageIds, customPackages) > 0
 
   const healthScore = useMemo(() => {
     if (!isConfigured || !stackQuery.data || !nodeQuery.data) {

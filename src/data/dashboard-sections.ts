@@ -43,6 +43,12 @@ export const DASHBOARD_SECTIONS = {
     subtitle: 'Breaking changes when a major version is available for your packages',
     navLabel: 'Major upgrades',
   },
+  transitive: {
+    id: 'transitive-deps',
+    title: 'Transitive dependencies',
+    subtitle: 'Sub-dependencies from your lockfile — including CVEs not visible in direct deps',
+    navLabel: 'Transitive deps',
+  },
 } as const
 
 export const SECTION_NAV_LINKS = [
@@ -51,5 +57,6 @@ export const SECTION_NAV_LINKS = [
   DASHBOARD_SECTIONS.dependencies,
   DASHBOARD_SECTIONS.node,
   DASHBOARD_SECTIONS.security,
+  DASHBOARD_SECTIONS.transitive,
   DASHBOARD_SECTIONS.breakingChanges,
 ].map(({ id, navLabel }) => ({ label: navLabel, hash: `#${id}` }))

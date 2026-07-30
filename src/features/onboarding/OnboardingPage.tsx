@@ -27,6 +27,8 @@ import type { StackImportResult } from '@/services/stack-import'
 import { useSettingsStore } from '@/stores'
 import { monoFont } from '@/theme'
 import { NodeVersionFields } from '@/components/NodeVersionFields'
+import { GitHubSyncDivider, GitHubSyncPanel } from '@/components/GitHubSyncPanel'
+import { formatGitHubRepo } from '@/lib/parse-github-repo'
 
 const STEPS = ['Project', 'Stack import', 'Node.js', 'Review']
 
@@ -90,12 +92,20 @@ export function OnboardingPage() {
   }
 
   const handleImport = () => {
-    if (!workingProject) {
-      const id = createProject(projectName.trim() || 'My project')
-      setDraftProjectId(id)
-      setActiveProject(id)
-    }
+    ensureWorkingProject()
     const result = importFromStack({ packageJson: packageJsonInput, lockfile: lockfileInput })
+    setImportResult(result)
+    if (result.nodeVersion && !nodeVersion.trim()) setNodeVersion(result.nodeVersion)
+  }
+
+  const ensureWorkingProject = () => {
+    if (workingProject) return
+    const id = createProject(projectName.trim() || 'My project')
+    setDraftProjectId(id)
+    setActiveProject(id)
+  }
+
+  const handleGitHubImportSuccess = (result: StackImportResult) => {
     setImportResult(result)
     if (result.nodeVersion && !nodeVersion.trim()) setNodeVersion(result.nodeVersion)
   }
@@ -179,10 +189,19 @@ export function OnboardingPage() {
               <Typography variant="h3">Import your stack</Typography>
             </Stack>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-              Paste your <code style={{ fontFamily: monoFont }}>package.json</code> and optionally a
-              lockfile for exact installed versions. Lockfile versions take precedence over ranges in
-              package.json.
+              Link a GitHub repo or paste your <code style={{ fontFamily: monoFont }}>package.json</code>{' '}
+              and optionally a lockfile for exact installed versions.
             </Typography>
+
+            <GitHubSyncPanel
+              compact
+              githubSync={workingProject?.githubSync}
+              onBeforeSync={ensureWorkingProject}
+              onImportSuccess={handleGitHubImportSuccess}
+            />
+
+            <GitHubSyncDivider />
+
             <TextField
               multiline
               minRows={8}
@@ -336,6 +355,12 @@ export function OnboardingPage() {
                 <SummaryRow
                   label="Project requires"
                   value={workingProject.enginesNodeRequirement}
+                />
+              )}
+              {workingProject.githubSync && (
+                <SummaryRow
+                  label="GitHub"
+                  value={`${formatGitHubRepo(workingProject.githubSync)} (${workingProject.githubSync.branch})`}
                 />
               )}
             </Stack>

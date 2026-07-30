@@ -14,6 +14,7 @@ import { DependencyWatchlist } from '@/features/dependencies/DependencyWatchlist
 import { NodeUpgradeCenter } from '@/features/node/NodeUpgradeCenter'
 import { SecurityCenter } from '@/features/security/SecurityCenter'
 import { BreakingChangesFeed } from '@/features/breaking/BreakingChangesFeed'
+import { TransitiveDependenciesSection } from '@/features/dependencies/TransitiveDependenciesSection'
 import { useActiveProject, useIsNodeConfigured } from '@/hooks/useActiveProject'
 import { useConfiguredPackageCount } from '@/lib/section-empty'
 import { useDashboardData } from '@/hooks/useDashboardData'
@@ -39,7 +40,12 @@ export function DashboardPage() {
 
   const stackReady = Boolean(stackQuery.data)
   const nodeReady = Boolean(nodeQuery.data)
-  const initialLoad = !stackReady && !nodeReady && (stackQuery.isLoading || nodeQuery.isLoading)
+  const queriesEnabled = Boolean(activeProject)
+  const initialLoad =
+    queriesEnabled &&
+    !stackReady &&
+    !nodeReady &&
+    (stackQuery.isFetching || nodeQuery.isFetching)
 
   const emptyHealthScore = useMemo(
     () => ({
@@ -54,7 +60,7 @@ export function DashboardPage() {
   )
 
   if (!activeProject) {
-    return <Navigate to="/onboarding" />
+    return <Navigate to="/onboarding" replace />
   }
 
   if (initialLoad) {
@@ -168,13 +174,23 @@ export function DashboardPage() {
       )}
 
       {stackReady ? (
-        <BreakingChangesFeed changes={stackQuery.data!.breakingChanges} />
+        <>
+          <TransitiveDependenciesSection items={stackQuery.data!.transitiveDependencies} />
+          <BreakingChangesFeed changes={stackQuery.data!.breakingChanges} />
+        </>
       ) : (
-        <SectionSkeleton
-          title={DASHBOARD_SECTIONS.breakingChanges.title}
-          id={DASHBOARD_SECTIONS.breakingChanges.id}
-          rows={2}
-        />
+        <>
+          <SectionSkeleton
+            title={DASHBOARD_SECTIONS.transitive.title}
+            id={DASHBOARD_SECTIONS.transitive.id}
+            rows={2}
+          />
+          <SectionSkeleton
+            title={DASHBOARD_SECTIONS.breakingChanges.title}
+            id={DASHBOARD_SECTIONS.breakingChanges.id}
+            rows={2}
+          />
+        </>
       )}
     </>
   )

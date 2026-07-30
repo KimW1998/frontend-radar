@@ -95,15 +95,26 @@ The **data sources indicator** in the sidebar footer shows API reachability.
 
 Configured with SPA redirects in `netlify.toml`.
 
-### GitHub token (recommended for production)
+### GitHub — two separate setups
 
-Without a token, GitHub API rate limits are low (~60 req/hr). Set `GITHUB_TOKEN` in Netlify environment variables for 5000 req/hr:
+**User repo imports (OAuth — each teammate uses their own GitHub):**
 
-1. Create a token at [github.com/settings/tokens](https://github.com/settings/tokens) (public repo read scope is enough)
-2. Netlify → Site → Environment variables → add `GITHUB_TOKEN`
-3. Redeploy
+1. Create a [GitHub OAuth App](https://github.com/settings/developers)  
+   - Homepage URL: `https://your-site.netlify.app`  
+   - Callback URL: `https://your-site.netlify.app/api/github-oauth-callback`
+2. Add to Netlify environment variables (and `.env` for local dev):
+   - `VITE_GITHUB_CLIENT_ID` — same Client ID (exposed to browser)
+   - `GITHUB_CLIENT_ID` — same Client ID (functions)
+   - `GITHUB_CLIENT_SECRET` — Client secret (functions only, never commit)
+3. Redeploy. Users click **Connect GitHub** in onboarding or Settings.
 
-Verify: `https://your-site.netlify.app/api/data-health` should show `"githubToken": true`.
+Repo imports never use the site owner's token — only the logged-in user's token, and only repositories returned by GitHub for that user (no manual URLs). Optionally set `GITHUB_IMPORT_BLOCKLIST=your-github-username` on Netlify to hard-block your namespace for other accounts.
+
+**Release notes proxy (optional site-wide PAT):**
+
+`GITHUB_TOKEN` is optional and only speeds up public release-note fetches for the watchlist (React, Vite, etc.). It is **not** used when importing a user's `package.json` from their repo.
+
+Verify: `/api/data-health` should show `"githubOAuth": true` after OAuth env vars are set.
 
 ```bash
 npm run build

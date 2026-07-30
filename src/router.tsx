@@ -1,4 +1,5 @@
-import { createRootRoute, createRoute, createRouter, Outlet } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, Outlet, Navigate } from '@tanstack/react-router'
+import { Box, CircularProgress, Typography } from '@mui/material'
 import { useRouterState } from '@tanstack/react-router'
 import { AppLayout } from '@/components/AppLayout'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
@@ -10,15 +11,54 @@ import { OnboardingPage } from '@/features/onboarding/OnboardingPage'
 import { UpgradePlanPage } from '@/features/upgrade-plan/UpgradePlanPage'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { useKnowledgeData } from '@/hooks/useKnowledgeData'
+import { useActiveProject } from '@/hooks/useActiveProject'
+import { useEnsureActiveProject, useSettingsHydrated } from '@/hooks/useSettingsHydrated'
+import { useGitHubOAuthCallback } from '@/hooks/useGitHubOAuthCallback'
+import { useSettingsStore } from '@/stores'
 
 function RootComponent() {
+  const hydrated = useSettingsHydrated()
+  useEnsureActiveProject()
+  useGitHubOAuthCallback()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const activeProject = useActiveProject()
+  const projects = useSettingsStore((s) => s.projects)
   const isReading = pathname === '/news' || pathname === '/news/releases' || pathname === '/tanstack'
+  const needsProject = pathname === '/' || pathname === '/upgrade-plan'
 
   const dashboard = useDashboardData(true)
   const knowledge = useKnowledgeData(isReading)
 
   const active = isReading ? knowledge : dashboard
+
+  if (!hydrated) {
+    return (
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 2,
+          bgcolor: 'background.default',
+        }}
+      >
+        <CircularProgress size={28} />
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+          Loading your workspace…
+        </Typography>
+      </Box>
+    )
+  }
+
+  if (needsProject && projects.length === 0) {
+    return <Navigate to="/onboarding" replace />
+  }
+
+  if (needsProject && !activeProject) {
+    return <Navigate to="/onboarding" replace />
+  }
 
   return (
     <AppLayout

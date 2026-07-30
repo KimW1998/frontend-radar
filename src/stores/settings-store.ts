@@ -7,14 +7,17 @@ import {
   createImportSnapshot,
   detectVersionDrift,
 } from '@/lib/version-drift'
+import { createLockfileGraphSnapshot } from '@/lib/lockfile-graph'
 import {
   applyStackImportVersions,
   parseStackImport,
   type StackImportResult,
 } from '@/services/stack-import'
+import { parseLockfileInput } from '@/services/lockfile'
 import { createEmptyProject, type Project } from '@/types/project'
 import { createCustomPackage } from '@/types/custom-package'
 import type { DriftReport } from '@/types/import-snapshot'
+import type { GitHubSyncConfig } from '@/types/github-sync'
 
 const initialVersions = Object.fromEntries(
   WATCHLIST_PACKAGES.map((p) => [p.npmPackage, '']),
@@ -42,6 +45,8 @@ interface SettingsState {
         | 'customPackages'
         | 'importSnapshot'
         | 'lastDriftReport'
+        | 'lockfileGraph'
+        | 'githubSync'
       >
     >,
   ) => void
@@ -59,6 +64,12 @@ interface SettingsState {
   checkStackDrift: (input: { packageJson?: string; lockfile?: string }) => DriftReport
   importFromPackageJson: (json: string) => StackImportResult
   clearDriftReport: () => void
+  setGitHubSync: (config: GitHubSyncConfig | undefined) => void
+  applyGitHubImport: (input: {
+    packageJson: string
+    lockfile?: string
+    githubSync: GitHubSyncConfig
+  }) => StackImportResult
 }
 
 function touchProject(project: Project, patch: Partial<Project>): Project {
@@ -83,6 +94,11 @@ function updateActiveProject(
   return {
     projects: state.projects.map((p) => (p.id === active.id ? updater(p) : p)),
   }
+}
+
+function buildLockfileGraph(lockfile?: string) {
+  if (!lockfile?.trim()) return undefined
+  return createLockfileGraphSnapshot(parseLockfileInput(lockfile))
 }
 
 function runStackImport(active: Project, input: { packageJson?: string; lockfile?: string }): {
@@ -242,6 +258,7 @@ export const useSettingsStore = create<SettingsState>()(
         const { result, drift } = runStackImport(active, input)
         const configuredVersions = applyStackImportVersions(active.configuredVersions, result)
         const nodeVersion = active.nodeVersion.trim() ? active.nodeVersion : (result.nodeVersion ?? active.nodeVersion)
+        const lockfileGraph = buildLockfileGraph(input.lockfile)
 
         set((state) =>
           updateActiveProject(state, (p) =>
@@ -251,6 +268,7 @@ export const useSettingsStore = create<SettingsState>()(
               nodeVersion,
               importSnapshot: createImportSnapshot(configuredVersions, nodeVersion, result.source),
               lastDriftReport: drift,
+              lockfileGraph: lockfileGraph ?? p.lockfileGraph,
             }),
           ),
         )
@@ -272,10 +290,53 @@ export const useSettingsStore = create<SettingsState>()(
       clearDriftReport: () => {
         set((state) => updateActiveProject(state, (p) => touchProject(p, { lastDriftReport: undefined })))
       },
+
+      setGitHubSync: (config) => {
+        set((state) => updateActiveProject(state, (p) => touchProject(p, { githubSync: config })))
+      },
+
+      applyGitHubImport: ({ packageJson, lockfile, githubSync }) => {
+        const active = getActiveProject(get())
+        if (!active) {
+          return {
+            matched: [],
+            missing: [],
+            discovered: [],
+            importedVersions: {},
+            nodeVersion: null,
+            enginesNode: null,
+            lockfileFormat: null,
+            source: 'package-json' as const,
+            errors: ['Create a project first'],
+          }
+        }
+
+        const { result, drift } = runStackImport(active, { packageJson, lockfile })
+        const configuredVersions = applyStackImportVersions(active.configuredVersions, result)
+        const nodeVersion = active.nodeVersion.trim() ? active.nodeVersion : (result.nodeVersion ?? active.nodeVersion)
+        const lockfileGraph = buildLockfileGraph(lockfile)
+        const syncConfig = { ...githubSync, lastSyncedAt: new Date().toISOString() }
+
+        set((state) =>
+          updateActiveProject(state, (p) =>
+            touchProject(p, {
+              configuredVersions,
+              enginesNodeRequirement: result.enginesNode ?? p.enginesNodeRequirement,
+              nodeVersion,
+              importSnapshot: createImportSnapshot(configuredVersions, nodeVersion, result.source),
+              lastDriftReport: drift,
+              lockfileGraph: lockfileGraph ?? p.lockfileGraph,
+              githubSync: syncConfig,
+            }),
+          ),
+        )
+
+        return result
+      },
     }),
     {
       name: 'frontend-radar-settings',
-      version: 4,
+      version: 5,
       migrate: (persisted, version) => {
         if (version === 0) {
           const old = persisted as LegacySettingsState
@@ -312,6 +373,17 @@ export const useSettingsStore = create<SettingsState>()(
               customPackages: (p as Project).customPackages ?? [],
               importSnapshot: (p as Project).importSnapshot,
               lastDriftReport: (p as Project).lastDriftReport,
+            })),
+          }
+        }
+        if (version === 4) {
+          const state = persisted as SettingsState
+          return {
+            ...state,
+            projects: state.projects.map((p) => ({
+              ...p,
+              lockfileGraph: (p as Project).lockfileGraph,
+              githubSync: (p as Project).githubSync,
             })),
           }
         }

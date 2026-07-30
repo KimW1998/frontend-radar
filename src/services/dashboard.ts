@@ -24,15 +24,23 @@ import { fetchDataHealth } from '@/services/api'
 
 import { getTrackedPackages } from '@/lib/watchlist'
 import { applyUpgradeConstraints } from '@/lib/upgrade-constraints'
+import {
+  collectTransitiveDependencies,
+  highestSeverity as highestTransitiveSeverity,
+  selectTransitiveForVulnScan,
+} from '@/lib/transitive-deps'
 import type { UpgradePlanStep } from '@/types'
 
 import type { CustomPackageEntry } from '@/types/custom-package'
+import type { LockfileGraphSnapshot } from '@/types/lockfile-graph'
+import type { TransitiveDependencyInsight } from '@/lib/transitive-deps'
 
 interface DashboardInput {
   configuredVersions: Record<string, string>
   nodeVersion: string
   trackedPackageIds: string[]
   customPackages: CustomPackageEntry[]
+  lockfileGraph?: LockfileGraphSnapshot
 }
 
 export interface DashboardNodeSection {
@@ -44,6 +52,7 @@ export interface DashboardStackSection {
   dependencies: Dependency[]
   securityAlerts: SecurityAlert[]
   breakingChanges: BreakingChange[]
+  transitiveDependencies: TransitiveDependencyInsight[]
   dataSources: DataSourceStatus[]
   upgradePlan: UpgradePlanStep[]
 }
@@ -396,7 +405,7 @@ export async function fetchDashboardStackSection(input: DashboardInput): Promise
         itemCount: 0,
       },
     )
-    return { dependencies, securityAlerts, breakingChanges, dataSources, upgradePlan: [] }
+    return { dependencies, securityAlerts, breakingChanges, transitiveDependencies: [], dataSources, upgradePlan: [] }
   }
 
   const githubRepos = [
@@ -480,10 +489,83 @@ export async function fetchDashboardStackSection(input: DashboardInput): Promise
 
   const constrained = applyUpgradeConstraints(dependencies)
 
+  let transitiveDependencies: TransitiveDependencyInsight[] = []
+  if (input.lockfileGraph) {
+    const trackedNpm = packages
+      .map((pkg) => pkg.npmPackage)
+      .filter((npmPackage) => input.configuredVersions[npmPackage]?.trim())
+
+    const transitiveBase = collectTransitiveDependencies(trackedNpm, input.lockfileGraph)
+    const toScan = selectTransitiveForVulnScan(transitiveBase, 15)
+
+    const vulnResults = await Promise.all(
+      toScan.map(async (item) => {
+        const result = await fetchPackageVulnerabilities(item.npmPackage, item.version)
+        return { item, vulns: result.data ?? [] }
+      }),
+    )
+
+    transitiveDependencies = transitiveBase.map((item) => {
+      const scanned = vulnResults.find((entry) => entry.item.id === item.id)
+      const vulns = scanned?.vulns ?? []
+      const top = vulns.sort(
+        (a, b) =>
+          ({ critical: 0, high: 1, medium: 2, low: 3 }[a.severity] -
+            { critical: 0, high: 1, medium: 2, low: 3 }[b.severity]),
+      )[0]
+
+      return {
+        ...item,
+        vulnerabilityCount: vulns.length,
+        highestSeverity: highestTransitiveSeverity(vulns.map((v) => v.severity)),
+        topAdvisoryId: top?.id ?? null,
+        fixedVersion: top?.fixedVersion ?? null,
+      }
+    })
+
+    const transitiveVulnCount = transitiveDependencies.filter((item) => item.vulnerabilityCount > 0).length
+    if (transitiveBase.length > 0) {
+      dataSources.push({
+        id: 'lockfile-graph',
+        name: 'Lockfile dependency graph',
+        endpoint: 'local lockfile import',
+        status: 'ok',
+        message: `${transitiveBase.length} transitive dependencies (${transitiveVulnCount} with advisories)`,
+        itemCount: transitiveBase.length,
+      })
+    }
+
+    for (const item of transitiveDependencies.filter((entry) => entry.vulnerabilityCount > 0)) {
+      securityAlerts.push({
+        id: `transitive-${item.id}`,
+        title: item.topAdvisoryId ? `${item.npmPackage}: transitive advisory` : `${item.npmPackage}: vulnerabilities in dependency tree`,
+        severity: item.highestSeverity ?? 'medium',
+        affectedPackage: item.npmPackage,
+        advisoryId: item.topAdvisoryId ?? undefined,
+        actionNeeded: item.fixedVersion
+          ? `Transitive ${item.npmPackage}@${item.version} — upgrade path via ${item.requiredBy.join(', ')} to ${item.fixedVersion}+`
+          : `Review transitive dependency ${item.npmPackage} required by ${item.requiredBy.join(', ')}`,
+        sourceUrl: item.topAdvisoryId ? `https://osv.dev/vulnerability/${item.topAdvisoryId}` : `https://www.npmjs.com/package/${item.npmPackage}`,
+        publishedAt: new Date().toISOString().slice(0, 10),
+        fixedVersion: item.fixedVersion,
+        categories: ['security'],
+        summary: buildSummary({
+          what: `${item.npmPackage}@${item.version} in your lockfile has ${item.vulnerabilityCount} relevant advisory(ies).`,
+          why: `Required transitively by ${item.requiredBy.join(', ')} — not a direct dependency you track.`,
+          action: item.fixedVersion
+            ? `Upgrade parent package(s) or run npm audit fix targeting ${item.fixedVersion}+.`
+            : 'Review OSV advisory and parent package upgrade paths.',
+          urgency: item.highestSeverity === 'critical' || item.highestSeverity === 'high' ? 'immediate' : 'this-sprint',
+        }),
+      })
+    }
+  }
+
   return {
     dependencies: constrained.dependencies,
     securityAlerts,
     breakingChanges,
+    transitiveDependencies,
     dataSources,
     upgradePlan: constrained.upgradePlan,
   }

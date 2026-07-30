@@ -1,18 +1,18 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useActiveProjectVersions } from '@/hooks/useActiveProject'
-import { useSettingsStore } from '@/stores'
+import { useActiveProject } from '@/hooks/useActiveProject'
+
+const EMPTY_TRACKED_IDS: string[] = []
+const EMPTY_CUSTOM_PACKAGES: never[] = []
 
 export function useDashboardRefreshOnSettingsChange() {
   const queryClient = useQueryClient()
-  const activeProjectId = useSettingsStore((s) => s.activeProjectId)
-  const { configuredVersions, nodeVersion } = useActiveProjectVersions()
-  const trackedPackageIds = useSettingsStore(
-    (s) => s.projects.find((p) => p.id === s.activeProjectId)?.trackedPackageIds ?? [],
-  )
-  const customPackages = useSettingsStore(
-    (s) => s.projects.find((p) => p.id === s.activeProjectId)?.customPackages ?? [],
-  )
+  const activeProject = useActiveProject()
+  const activeProjectId = activeProject?.id ?? null
+  const configuredVersions = activeProject?.configuredVersions
+  const nodeVersion = activeProject?.nodeVersion ?? ''
+  const trackedPackageIds = activeProject?.trackedPackageIds ?? EMPTY_TRACKED_IDS
+  const customPackages = activeProject?.customPackages ?? EMPTY_CUSTOM_PACKAGES
   const skipInitial = useRef(true)
 
   useEffect(() => {

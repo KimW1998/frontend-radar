@@ -3,6 +3,8 @@ import { getConfiguredPackageCount } from '@/lib/section-empty'
 import { selectActiveProject, useSettingsStore } from '@/stores/settings-store'
 import type { Project } from '@/types/project'
 
+const EMPTY_VERSIONS: Record<string, string> = {}
+
 export function useActiveProject(): Project | null {
   return useSettingsStore(selectActiveProject)
 }
@@ -11,7 +13,7 @@ export function useActiveProjectVersions() {
   const activeProject = useActiveProject()
   return useMemo(
     () => ({
-      configuredVersions: activeProject?.configuredVersions ?? {},
+      configuredVersions: activeProject?.configuredVersions ?? EMPTY_VERSIONS,
       nodeVersion: activeProject?.nodeVersion ?? '',
     }),
     [activeProject],
