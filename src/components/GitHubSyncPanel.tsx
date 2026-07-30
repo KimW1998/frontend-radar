@@ -196,8 +196,7 @@ export function GitHubSyncPanel({
       })
 
       const hasImportedData =
-        result.matched.length > 0 ||
-        result.discoveredFromPackageJson.length > 0 ||
+        result.packagesFromPackageJson.length > 0 ||
         result.discoveredFromLockfileOnly.length > 0
 
       if (!hasImportedData) {
@@ -224,7 +223,7 @@ export function GitHubSyncPanel({
       const lockfileNote = resolved.lockfilePath ? ` + ${resolved.lockfilePath}` : ''
       setMessage({
         type: 'success',
-        text: `Imported from ${config.owner}/${config.repo} (package.json${lockfileNote}). ${result.matched.length} watchlist match${result.matched.length === 1 ? '' : 'es'}.`,
+        text: `Imported from ${config.owner}/${config.repo} (package.json${lockfileNote}). ${result.packagesFromPackageJson.length} package${result.packagesFromPackageJson.length === 1 ? '' : 's'} tracked.`,
       })
     } catch (error) {
       setMessage({

@@ -77,7 +77,7 @@ export function SettingsPage() {
   const handleImport = () => {
     const result = importFromStack({ packageJson: packageJsonInput, lockfile: lockfileInput })
     setImportResult(result)
-    if (result.matched.length > 0) {
+    if (result.packagesFromPackageJson.length > 0) {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     }
   }
@@ -86,7 +86,7 @@ export function SettingsPage() {
     setImportResult(result)
     setPackageJsonInput(files.packageJson)
     if (files.lockfile) setLockfileInput(files.lockfile)
-    if (result.matched.length > 0) {
+    if (result.packagesFromPackageJson.length > 0) {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     }
   }
@@ -333,38 +333,31 @@ export function SettingsPage() {
                     </Alert>
                   )}
 
-                  {importResult.matched.length > 0 ? (
+                  {importResult.packagesFromPackageJson.length > 0 ? (
                     <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mb: 1.5 }}>
-                      Imported {importResult.matched.length} package
-                      {importResult.matched.length !== 1 ? 's' : ''}
+                      Tracking {importResult.packagesFromPackageJson.length} package
+                      {importResult.packagesFromPackageJson.length !== 1 ? 's' : ''} from package.json
                       {importResult.nodeVersion && ` · Node ${importResult.nodeVersion}`}
                     </Alert>
                   ) : (
-                    <Alert severity="error">No matching packages found in package.json.</Alert>
+                    <Alert severity="error">No dependencies found in package.json.</Alert>
                   )}
 
-                  {importResult.matched.length > 0 && (
+                  {importResult.packagesFromPackageJson.length > 0 && (
                     <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.5 }}>
-                      {importResult.matched.map((item) => (
+                      {importResult.packagesFromPackageJson.slice(0, 12).map((item) => (
                         <Chip
                           key={item.npmPackage}
-                          label={`${item.name} ${item.version}`}
+                          label={`${item.npmPackage} ${item.version}`}
                           size="small"
                           sx={{ fontFamily: monoFont, fontSize: '0.75rem' }}
                         />
                       ))}
                     </Stack>
                   )}
-                  {importResult.discoveredFromPackageJson.length > 0 ||
-                  importResult.discoveredFromLockfileOnly.length > 0 ? (
+                  {importResult.discoveredFromLockfileOnly.length > 0 ? (
                     <DiscoveredPackagesPrompt
                       importResult={importResult}
-                      onTrackPackageJsonExtras={() => {
-                        trackDiscoveredPackages(
-                          importResult.discoveredFromPackageJson.map((item) => item.npmPackage),
-                        )
-                        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-                      }}
                       onTrackLockfileExtras={() => {
                         trackDiscoveredPackages(
                           importResult.discoveredFromLockfileOnly.slice(0, 24).map((item) => item.npmPackage),

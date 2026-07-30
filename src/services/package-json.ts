@@ -51,12 +51,14 @@ export function parsePackageJsonInput(
 
 export function applyPackageJsonImport(
   currentVersions: Record<string, string>,
-  importResult: Pick<StackImportResult, 'matched'>,
+  importResult: Pick<StackImportResult, 'packagesFromPackageJson'>,
 ): Record<string, string> {
   return applyStackImportVersions(currentVersions, {
     ...importResult,
+    matched: [],
     missing: [],
     discovered: [],
+    packagesFromPackageJson: importResult.packagesFromPackageJson,
     discoveredFromPackageJson: [],
     discoveredFromLockfileOnly: [],
     importedVersions: {},

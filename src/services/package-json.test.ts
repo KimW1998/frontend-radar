@@ -4,6 +4,8 @@ import {
   normalizeVersionRange,
   parsePackageJsonInput,
 } from './package-json'
+import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
+import { parseStackImport } from './stack-import'
 
 describe('normalizeVersionRange', () => {
   it('extracts semver from caret ranges', () => {
@@ -56,8 +58,9 @@ describe('parsePackageJsonInput', () => {
 
 describe('applyPackageJsonImport', () => {
   it('merges matched versions into existing configured versions', () => {
-    const importResult = parsePackageJsonInput(
-      JSON.stringify({ dependencies: { react: '^19.0.0' } }),
+    const importResult = parseStackImport(
+      WATCHLIST_PACKAGES,
+      { packageJson: JSON.stringify({ dependencies: { react: '^19.0.0' } }) },
     )
 
     const next = applyPackageJsonImport({ typescript: '5.0.0' }, importResult)

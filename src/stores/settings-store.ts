@@ -9,7 +9,6 @@ import {
 } from '@/lib/version-drift'
 import { createLockfileGraphSnapshot } from '@/lib/lockfile-graph'
 import {
-  applyStackImportVersions,
   parseStackImport,
   type StackImportResult,
 } from '@/services/stack-import'
@@ -99,6 +98,36 @@ function updateActiveProject(
 function buildLockfileGraph(lockfile?: string) {
   if (!lockfile?.trim()) return undefined
   return createLockfileGraphSnapshot(parseLockfileInput(lockfile))
+}
+
+function applyPackageJsonTracking(
+  project: Project,
+  packages: Array<{ npmPackage: string; version: string; name: string }>,
+): Pick<Project, 'customPackages' | 'trackedPackageIds' | 'configuredVersions'> {
+  const customPackages = [...project.customPackages]
+  const configuredVersions = { ...project.configuredVersions }
+  const trackedPackageIds: string[] = []
+
+  for (const item of packages) {
+    configuredVersions[item.npmPackage] = item.version
+    const catalogEntry = WATCHLIST_PACKAGES.find((p) => p.npmPackage === item.npmPackage)
+    if (catalogEntry) {
+      trackedPackageIds.push(catalogEntry.id)
+      continue
+    }
+    let custom = customPackages.find((p) => p.npmPackage === item.npmPackage)
+    if (!custom) {
+      custom = createCustomPackage(item.npmPackage, item.name)
+      customPackages.push(custom)
+    }
+    trackedPackageIds.push(custom.id)
+  }
+
+  return {
+    customPackages,
+    trackedPackageIds: resolveTrackedPackageIds(trackedPackageIds, customPackages),
+    configuredVersions,
+  }
 }
 
 function runStackImport(active: Project, input: { packageJson?: string; lockfile?: string }): {
@@ -246,6 +275,7 @@ export const useSettingsStore = create<SettingsState>()(
             matched: [],
             missing: [],
             discovered: [],
+            packagesFromPackageJson: [],
             discoveredFromPackageJson: [],
             discoveredFromLockfileOnly: [],
             importedVersions: {},
@@ -258,17 +288,28 @@ export const useSettingsStore = create<SettingsState>()(
         }
 
         const { result, drift } = runStackImport(active, input)
-        const configuredVersions = applyStackImportVersions(active.configuredVersions, result)
+        const packageJsonTracking =
+          result.packagesFromPackageJson.length > 0
+            ? applyPackageJsonTracking(active, result.packagesFromPackageJson)
+            : {
+                customPackages: active.customPackages,
+                trackedPackageIds: active.trackedPackageIds,
+                configuredVersions: active.configuredVersions,
+              }
         const nodeVersion = active.nodeVersion.trim() ? active.nodeVersion : (result.nodeVersion ?? active.nodeVersion)
         const lockfileGraph = buildLockfileGraph(input.lockfile)
 
         set((state) =>
           updateActiveProject(state, (p) =>
             touchProject(p, {
-              configuredVersions,
+              ...packageJsonTracking,
               enginesNodeRequirement: result.enginesNode ?? p.enginesNodeRequirement,
               nodeVersion,
-              importSnapshot: createImportSnapshot(configuredVersions, nodeVersion, result.source),
+              importSnapshot: createImportSnapshot(
+                packageJsonTracking.configuredVersions,
+                nodeVersion,
+                result.source,
+              ),
               lastDriftReport: drift,
               lockfileGraph: lockfileGraph ?? p.lockfileGraph,
             }),
@@ -304,6 +345,7 @@ export const useSettingsStore = create<SettingsState>()(
             matched: [],
             missing: [],
             discovered: [],
+            packagesFromPackageJson: [],
             discoveredFromPackageJson: [],
             discoveredFromLockfileOnly: [],
             importedVersions: {},
@@ -316,7 +358,14 @@ export const useSettingsStore = create<SettingsState>()(
         }
 
         const { result, drift } = runStackImport(active, { packageJson, lockfile })
-        const configuredVersions = applyStackImportVersions(active.configuredVersions, result)
+        const packageJsonTracking =
+          result.packagesFromPackageJson.length > 0
+            ? applyPackageJsonTracking(active, result.packagesFromPackageJson)
+            : {
+                customPackages: active.customPackages,
+                trackedPackageIds: active.trackedPackageIds,
+                configuredVersions: active.configuredVersions,
+              }
         const nodeVersion = active.nodeVersion.trim() ? active.nodeVersion : (result.nodeVersion ?? active.nodeVersion)
         const lockfileGraph = buildLockfileGraph(lockfile)
         const syncConfig = { ...githubSync, lastSyncedAt: new Date().toISOString() }
@@ -324,10 +373,14 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) =>
           updateActiveProject(state, (p) =>
             touchProject(p, {
-              configuredVersions,
+              ...packageJsonTracking,
               enginesNodeRequirement: result.enginesNode ?? p.enginesNodeRequirement,
               nodeVersion,
-              importSnapshot: createImportSnapshot(configuredVersions, nodeVersion, result.source),
+              importSnapshot: createImportSnapshot(
+                packageJsonTracking.configuredVersions,
+                nodeVersion,
+                result.source,
+              ),
               lastDriftReport: drift,
               lockfileGraph: lockfileGraph ?? p.lockfileGraph,
               githubSync: syncConfig,

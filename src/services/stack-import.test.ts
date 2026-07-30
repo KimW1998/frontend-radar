@@ -24,6 +24,7 @@ describe('parseStackImport discovered split', () => {
 
     const result = parseStackImport(WATCHLIST_PACKAGES, { packageJson, lockfile })
 
+    expect(result.packagesFromPackageJson.map((item) => item.npmPackage)).toEqual(['lodash', 'react'])
     expect(result.discoveredFromPackageJson.map((item) => item.npmPackage)).toEqual(['lodash'])
     expect(result.discoveredFromLockfileOnly.map((item) => item.npmPackage)).toEqual(['ms'])
     expect(result.matched.some((item) => item.npmPackage === 'react')).toBe(true)

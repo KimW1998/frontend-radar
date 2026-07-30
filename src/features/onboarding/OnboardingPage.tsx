@@ -179,7 +179,7 @@ export function OnboardingPage() {
 
   const canContinueFromImport =
     configuredCount > 0 ||
-    (importResult?.discoveredFromPackageJson.length ?? 0) > 0 ||
+    (importResult?.packagesFromPackageJson.length ?? 0) > 0 ||
     (importResult?.discoveredFromLockfileOnly.length ?? 0) > 0
 
   return (
@@ -290,7 +290,7 @@ export function OnboardingPage() {
                 Import versions
               </Button>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {configuredCount}/{trackedCount} packages matched
+                {configuredCount}/{trackedCount} packages configured
               </Typography>
             </Stack>
 
@@ -301,20 +301,21 @@ export function OnboardingPage() {
                     {importResult.errors.join(' ')}
                   </Alert>
                 )}
-                {importResult.matched.length > 0 ? (
+                {importResult.packagesFromPackageJson.length > 0 ? (
                   <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mb: 1.5 }}>
-                    Found {importResult.matched.length} watchlist package
-                    {importResult.matched.length !== 1 ? 's' : ''}
+                    Tracking {importResult.packagesFromPackageJson.length} package
+                    {importResult.packagesFromPackageJson.length !== 1 ? 's' : ''} from{' '}
+                    <code style={{ fontFamily: monoFont }}>package.json</code>
                     {importResult.lockfileFormat && ` · lockfile parsed (${importResult.lockfileFormat})`}
                   </Alert>
                 ) : (
                   <Alert severity="info" sx={{ mb: 1.5 }}>
-                    No built-in watchlist matches yet — add extras below or paste a different stack.
+                    No dependencies found in package.json — paste your project files or import from GitHub.
                   </Alert>
                 )}
-                {importResult.matched.length > 0 && (
+                {importResult.packagesFromPackageJson.length > 0 && (
                   <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.5 }}>
-                    {importResult.matched.map((item) => (
+                    {importResult.packagesFromPackageJson.slice(0, 16).map((item) => (
                       <Chip
                         key={item.npmPackage}
                         label={`${item.name} ${item.version}`}
@@ -322,15 +323,17 @@ export function OnboardingPage() {
                         sx={{ fontFamily: monoFont, fontSize: '0.75rem' }}
                       />
                     ))}
+                    {importResult.packagesFromPackageJson.length > 16 && (
+                      <Chip
+                        label={`+${importResult.packagesFromPackageJson.length - 16} more`}
+                        size="small"
+                        variant="outlined"
+                      />
+                    )}
                   </Stack>
                 )}
                 <DiscoveredPackagesPrompt
                   importResult={importResult}
-                  onTrackPackageJsonExtras={() =>
-                    trackDiscoveredPackages(
-                      importResult.discoveredFromPackageJson.map((item) => item.npmPackage),
-                    )
-                  }
                   onTrackLockfileExtras={() =>
                     trackDiscoveredPackages(
                       importResult.discoveredFromLockfileOnly.slice(0, 24).map((item) => item.npmPackage),

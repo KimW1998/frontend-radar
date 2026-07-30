@@ -13,6 +13,8 @@ export interface StackImportResult {
   matched: StackImportMatch[]
   missing: Array<{ name: string; npmPackage: string }>
   discovered: Array<{ npmPackage: string; version: string; name: string }>
+  /** Every direct package.json dependency with a resolved version */
+  packagesFromPackageJson: Array<{ npmPackage: string; version: string; name: string }>
   /** Direct package.json deps not in the built-in watchlist */
   discoveredFromPackageJson: Array<{ npmPackage: string; version: string; name: string }>
   /** Present in lockfile but not listed in package.json dependencies */
@@ -123,6 +125,19 @@ export function parseStackImport(
     }))
     .sort((a, b) => a.npmPackage.localeCompare(b.npmPackage))
 
+  const packagesFromPackageJson = Object.keys(packageJsonCore?.allDeps ?? {})
+    .map((npmPackage) => {
+      const version = importedVersions[npmPackage]
+      if (!version) return null
+      return {
+        npmPackage,
+        version,
+        name: npmPackage.replace(/^@/, '').split('/').pop() ?? npmPackage,
+      }
+    })
+    .filter((item): item is { npmPackage: string; version: string; name: string } => item !== null)
+    .sort((a, b) => a.npmPackage.localeCompare(b.npmPackage))
+
   const discoveredFromPackageJson = discovered.filter((item) => packageJsonDepNames.has(item.npmPackage))
   const discoveredFromLockfileOnly = discovered.filter((item) => !packageJsonDepNames.has(item.npmPackage))
 
@@ -134,6 +149,7 @@ export function parseStackImport(
     matched,
     missing,
     discovered,
+    packagesFromPackageJson,
     discoveredFromPackageJson,
     discoveredFromLockfileOnly,
     importedVersions,
@@ -150,7 +166,7 @@ export function applyStackImportVersions(
   result: StackImportResult,
 ): Record<string, string> {
   const next = { ...currentVersions }
-  for (const item of result.matched) {
+  for (const item of result.packagesFromPackageJson) {
     next[item.npmPackage] = item.version
   }
   return next
