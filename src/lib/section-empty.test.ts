@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createCustomPackage } from '@/types/custom-package'
 import { getConfiguredPackageCount, resolveSectionEmpty } from './section-empty'
 
 describe('resolveSectionEmpty', () => {
@@ -31,7 +32,13 @@ describe('getConfiguredPackageCount', () => {
       zod: '3.24.0',
     }
 
-    expect(getConfiguredPackageCount(configured, ['react', 'typescript'])).toBe(2)
-    expect(getConfiguredPackageCount(configured, ['vitest'])).toBe(0)
+    const react = createCustomPackage('react')
+    const typescript = createCustomPackage('typescript')
+    const vitest = createCustomPackage('vitest')
+
+    expect(
+      getConfiguredPackageCount(configured, [react.id, typescript.id], [react, typescript]),
+    ).toBe(2)
+    expect(getConfiguredPackageCount(configured, [vitest.id], [vitest])).toBe(0)
   })
 })

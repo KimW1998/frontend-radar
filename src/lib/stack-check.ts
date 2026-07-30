@@ -5,7 +5,6 @@ import { parseStackImport } from '@/services/stack-import'
 import { fetchNodeStatus } from '@/services/node'
 import { fetchPackageVulnerabilities } from '@/services/osv'
 import { calculateHealthScore } from '@/services/health'
-import { DEFAULT_TRACKED_PACKAGE_IDS, getTrackedPackages } from '@/lib/watchlist'
 
 export interface StackCheckOptions {
   cwd?: string
@@ -86,11 +85,13 @@ export async function runStackCheck(options: StackCheckOptions = {}): Promise<St
     ? readOptionalFile(cwd, options.lockfilePath)
     : detectLockfile(cwd)
 
-  const packages = getTrackedPackages(DEFAULT_TRACKED_PACKAGE_IDS, [])
-  const importResult = parseStackImport(packages, { packageJson, lockfile })
+  const importResult = parseStackImport([], { packageJson, lockfile })
   if (importResult.errors.length > 0) warnings.push(...importResult.errors)
 
-  const versionsToCheck = Object.entries(importResult.importedVersions).slice(0, maxVulnQueries)
+  const packagesToCheck = importResult.packagesFromPackageJson
+  const versionsToCheck = packagesToCheck
+    .slice(0, maxVulnQueries)
+    .map((item) => [item.npmPackage, item.version] as const)
   let criticalCount = 0
   let highCount = 0
 
@@ -127,8 +128,8 @@ export async function runStackCheck(options: StackCheckOptions = {}): Promise<St
   }
 
   let healthScore: number | null = null
-  if (minHealthScore != null && importResult.matched.length > 0) {
-    const deps = importResult.matched.map((item) => {
+  if (minHealthScore != null && packagesToCheck.length > 0) {
+    const deps = packagesToCheck.map((item) => {
       const catalog = WATCHLIST_PACKAGES.find((p) => p.npmPackage === item.npmPackage)
       return {
         id: catalog?.id ?? item.npmPackage,

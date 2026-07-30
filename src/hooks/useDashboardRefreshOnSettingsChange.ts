@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useActiveProject } from '@/hooks/useActiveProject'
 
-const EMPTY_TRACKED_IDS: string[] = []
 const EMPTY_CUSTOM_PACKAGES: never[] = []
+const EMPTY_TRACKED_IDS: string[] = []
 
 export function useDashboardRefreshOnSettingsChange() {
   const queryClient = useQueryClient()

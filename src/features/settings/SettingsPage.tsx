@@ -25,11 +25,11 @@ import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useDashboardRefreshOnSettingsChange } from '@/hooks/useDashboardRefreshOnSettingsChange'
 import { useActiveProject } from '@/hooks/useActiveProject'
-import { ProjectWatchlistEditor } from '@/components/ProjectWatchlistEditor'
+import { TrackedPackagesEditor } from '@/components/TrackedPackagesEditor'
 import { GitHubSyncCard } from '@/components/GitHubSyncCard'
 import { NodeVersionFields } from '@/components/NodeVersionFields'
-import { getConfiguredPackageCount, useTrackedPackageCount } from '@/lib/section-empty'
-import { getConfiguredPackageCountForProject, getTrackedPackages } from '@/lib/watchlist'
+import { getConfiguredPackageCount } from '@/lib/section-empty'
+import { getTrackedPackages } from '@/lib/watchlist'
 import { hasActiveDrift } from '@/lib/version-drift'
 import { useStackNotifications } from '@/hooks/useStackNotifications'
 import { PACKAGE_MANAGER_LABELS, type PackageManager } from '@/lib/upgrade-command'
@@ -62,7 +62,6 @@ export function SettingsPage() {
     notificationsEnabled,
     setNotificationsEnabled,
   } = useUiStore()
-  const trackedCount = useTrackedPackageCount()
   const { requestPermission } = useStackNotifications(undefined, activeProject?.name)
 
   const [packageJsonInput, setPackageJsonInput] = useState('')
@@ -175,11 +174,6 @@ export function SettingsPage() {
           </Typography>
           <Stack spacing={1}>
             {projects.map((project) => {
-              const count = getConfiguredPackageCountForProject(
-                project.configuredVersions,
-                project.trackedPackageIds,
-                project.customPackages,
-              )
               const tracked = getTrackedPackages(project.trackedPackageIds, project.customPackages).length
               const isActive = project.id === activeProject?.id
               return (
@@ -201,7 +195,7 @@ export function SettingsPage() {
                       {project.name}
                     </Typography>
                     <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                      {count}/{tracked} tracked packages
+                      {tracked} tracked package{tracked === 1 ? '' : 's'}
                       {project.nodeVersion ? ` · Node ${project.nodeVersion}` : ' · Node not set'}
                     </Typography>
                   </Box>
@@ -240,9 +234,10 @@ export function SettingsPage() {
                 Tracked packages — {activeProject.name}
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-                Choose which packages this project monitors on the dashboard.
+                Packages come from your imported <code style={{ fontFamily: monoFont }}>package.json</code>.
+                Check the ones you want on the dashboard.
               </Typography>
-              <ProjectWatchlistEditor
+              <TrackedPackagesEditor
                 trackedPackageIds={activeProject.trackedPackageIds}
                 customPackages={activeProject.customPackages}
               />
@@ -312,7 +307,7 @@ export function SettingsPage() {
                   Check drift
                 </Button>
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  {configuredCount}/{trackedCount} tracked packages configured
+                  {configuredCount} package{configuredCount === 1 ? '' : 's'} configured
                 </Typography>
               </Stack>
 
@@ -344,8 +339,8 @@ export function SettingsPage() {
                   )}
 
                   {importResult.packagesFromPackageJson.length > 0 && (
-                    <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.5 }}>
-                      {importResult.packagesFromPackageJson.slice(0, 12).map((item) => (
+                    <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.5, maxHeight: 240, overflow: 'auto' }}>
+                      {importResult.packagesFromPackageJson.map((item) => (
                         <Chip
                           key={item.npmPackage}
                           label={`${item.npmPackage} ${item.version}`}
@@ -360,7 +355,7 @@ export function SettingsPage() {
                       importResult={importResult}
                       onTrackLockfileExtras={() => {
                         const tracked = trackDiscoveredPackages(
-                          importResult.discoveredFromLockfileOnly.slice(0, 24).map((item) => ({
+                          importResult.discoveredFromLockfileOnly.map((item) => ({
                             npmPackage: item.npmPackage,
                             version: item.version,
                           })),
@@ -405,7 +400,7 @@ export function SettingsPage() {
                   </Typography>
                   <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                     {showManual
-                      ? 'Edit installed versions for each watchlist package.'
+                      ? 'Edit installed versions for each tracked package.'
                       : 'Imported from package.json above. Edit manually if you need to adjust a version.'}
                   </Typography>
                 </Box>

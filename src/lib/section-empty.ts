@@ -1,7 +1,6 @@
 import { useActiveProject } from '@/hooks/useActiveProject'
 import type { CustomPackageEntry } from '@/types/custom-package'
 import {
-  DEFAULT_TRACKED_PACKAGE_IDS,
   getConfiguredPackageCountForProject,
   getTrackedPackages,
   isProjectStackConfigured,
@@ -27,7 +26,7 @@ export function useConfiguredPackageCount(): number {
 
 export function useTrackedPackageCount(): number {
   const activeProject = useActiveProject()
-  if (!activeProject) return DEFAULT_TRACKED_PACKAGE_IDS.length
+  if (!activeProject) return 0
   return getTrackedPackages(activeProject.trackedPackageIds, activeProject.customPackages).length
 }
 

@@ -23,7 +23,11 @@ export function useActiveProjectVersions() {
 export function useIsProjectReady(): boolean {
   const activeProject = useActiveProject()
   if (!activeProject) return false
-  return getConfiguredPackageCount(activeProject.configuredVersions) > 0
+  return getConfiguredPackageCount(
+    activeProject.configuredVersions,
+    activeProject.trackedPackageIds,
+    activeProject.customPackages,
+  ) > 0
 }
 
 export function useIsNodeConfigured(): boolean {

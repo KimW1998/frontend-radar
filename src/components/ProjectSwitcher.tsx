@@ -79,7 +79,11 @@ export function ProjectSwitcher() {
           </Typography>
           {activeProject && (
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {getConfiguredPackageCount(activeProject.configuredVersions)} packages
+              {getConfiguredPackageCount(
+                activeProject.configuredVersions,
+                activeProject.trackedPackageIds,
+                activeProject.customPackages,
+              )} packages
               {activeProject.nodeVersion ? ` · Node ${activeProject.nodeVersion}` : ''}
             </Typography>
           )}
@@ -110,7 +114,11 @@ export function ProjectSwitcher() {
             </ListItemIcon>
             <ListItemText
               primary={project.name}
-              secondary={`${getConfiguredPackageCount(project.configuredVersions)} packages`}
+              secondary={`${getConfiguredPackageCount(
+                project.configuredVersions,
+                project.trackedPackageIds,
+                project.customPackages,
+              )} packages`}
               slotProps={{
                 primary: { fontSize: '0.8125rem', fontWeight: 500 },
                 secondary: { fontSize: '0.6875rem' },

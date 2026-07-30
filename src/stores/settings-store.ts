@@ -18,13 +18,13 @@ import { createCustomPackage } from '@/types/custom-package'
 import type { DriftReport } from '@/types/import-snapshot'
 import type { GitHubSyncConfig } from '@/types/github-sync'
 
-const initialVersions = Object.fromEntries(
-  WATCHLIST_PACKAGES.map((p) => [p.npmPackage, '']),
-)
-
 interface LegacySettingsState {
   configuredVersions?: Record<string, string>
   nodeVersion?: string
+}
+
+type LegacyProject = Omit<Project, 'trackedPackageIds'> & {
+  trackedPackageIds?: string[]
 }
 
 interface SettingsState {
@@ -40,8 +40,8 @@ interface SettingsState {
         | 'configuredVersions'
         | 'enginesNodeRequirement'
         | 'nodeVersion'
-        | 'trackedPackageIds'
         | 'customPackages'
+        | 'trackedPackageIds'
         | 'importSnapshot'
         | 'lastDriftReport'
         | 'lockfileGraph'
@@ -106,24 +106,21 @@ function applyPackageJsonTracking(
   project: Project,
   packages: Array<{ npmPackage: string; version: string; name: string }>,
 ): Pick<Project, 'customPackages' | 'trackedPackageIds' | 'configuredVersions'> {
-  const customPackages = [...project.customPackages]
+  const packageJsonNames = new Set(packages.map((item) => item.npmPackage))
+  const lockfileExtras = project.customPackages.filter((pkg) => !packageJsonNames.has(pkg.npmPackage))
   const configuredVersions = { ...project.configuredVersions }
-  const trackedPackageIds: string[] = []
+  const previousTracked = new Set(project.trackedPackageIds)
 
-  for (const item of packages) {
+  const fromPackageJson = packages.map((item) => {
     configuredVersions[item.npmPackage] = item.version
-    const catalogEntry = WATCHLIST_PACKAGES.find((p) => p.npmPackage === item.npmPackage)
-    if (catalogEntry) {
-      trackedPackageIds.push(catalogEntry.id)
-      continue
-    }
-    let custom = customPackages.find((p) => p.npmPackage === item.npmPackage)
-    if (!custom) {
-      custom = createCustomPackage(item.npmPackage, item.name)
-      customPackages.push(custom)
-    }
-    trackedPackageIds.push(custom.id)
-  }
+    const existing = project.customPackages.find((pkg) => pkg.npmPackage === item.npmPackage)
+    return existing ?? createCustomPackage(item.npmPackage, item.name)
+  })
+
+  const customPackages = [...fromPackageJson, ...lockfileExtras]
+  const trackedPackageIds = customPackages
+    .filter((pkg) => packageJsonNames.has(pkg.npmPackage) || previousTracked.has(pkg.id))
+    .map((pkg) => pkg.id)
 
   return {
     customPackages,
@@ -136,7 +133,7 @@ function runStackImport(active: Project, input: { packageJson?: string; lockfile
   result: StackImportResult
   drift: DriftReport
 } {
-  const packages = getTrackedPackagesForProject(active)
+  const packages = getTrackedPackages(active.trackedPackageIds, active.customPackages)
   const result = parseStackImport(packages, input)
   const drift = createDriftReport(
     detectVersionDrift(active.configuredVersions, result.importedVersions, packages),
@@ -144,8 +141,36 @@ function runStackImport(active: Project, input: { packageJson?: string; lockfile
   return { result, drift }
 }
 
-function getTrackedPackagesForProject(project: Project) {
-  return getTrackedPackages(project.trackedPackageIds, project.customPackages)
+function migrateToPackageJsonOnly(project: LegacyProject): Project {
+  const npmNames = new Set<string>()
+
+  for (const custom of project.customPackages ?? []) {
+    npmNames.add(custom.npmPackage)
+  }
+  for (const [npm, version] of Object.entries(project.configuredVersions ?? {})) {
+    if (version.trim()) npmNames.add(npm)
+  }
+
+  const customPackages = [...npmNames].map((npmPackage) => {
+    const existing = project.customPackages?.find((pkg) => pkg.npmPackage === npmPackage)
+    if (existing) return existing
+    const known = WATCHLIST_PACKAGES.find((pkg) => pkg.npmPackage === npmPackage)
+    return createCustomPackage(npmPackage, known?.name)
+  })
+
+  const configuredVersions = Object.fromEntries(
+    customPackages
+      .map((pkg) => [pkg.npmPackage, project.configuredVersions?.[pkg.npmPackage]?.trim() ?? ''] as const)
+      .filter(([, version]) => version.length > 0),
+  )
+
+  const { trackedPackageIds: _legacyTracked, ...rest } = project
+  return {
+    ...rest,
+    customPackages,
+    trackedPackageIds: customPackages.map((pkg) => pkg.id),
+    configuredVersions,
+  }
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -155,7 +180,7 @@ export const useSettingsStore = create<SettingsState>()(
       activeProjectId: null,
 
       createProject: (name) => {
-        const project = createEmptyProject(name.trim() || 'Untitled project', initialVersions)
+        const project = createEmptyProject(name.trim() || 'Untitled project')
         set((state) => ({
           projects: [...state.projects, project],
           activeProjectId: project.id,
@@ -231,13 +256,12 @@ export const useSettingsStore = create<SettingsState>()(
           updateActiveProject(state, (p) => {
             if (p.customPackages.some((pkg) => pkg.npmPackage === trimmed)) return p
             const custom = createCustomPackage(trimmed, name)
-            const trackedPackageIds = resolveTrackedPackageIds(
-              [...p.trackedPackageIds, custom.id],
-              [...p.customPackages, custom],
-            )
             return touchProject(p, {
               customPackages: [...p.customPackages, custom],
-              trackedPackageIds,
+              trackedPackageIds: resolveTrackedPackageIds(
+                [...p.trackedPackageIds, custom.id],
+                [...p.customPackages, custom],
+              ),
               configuredVersions: { ...p.configuredVersions, [trimmed]: p.configuredVersions[trimmed] ?? '' },
             })
           }),
@@ -250,6 +274,7 @@ export const useSettingsStore = create<SettingsState>()(
             const custom = p.customPackages.find((pkg) => pkg.id === packageId)
             if (!custom) return p
             const nextCustom = p.customPackages.filter((pkg) => pkg.id !== packageId)
+            if (nextCustom.length === 0) return p
             const nextVersions = { ...p.configuredVersions }
             delete nextVersions[custom.npmPackage]
             return touchProject(p, {
@@ -272,7 +297,7 @@ export const useSettingsStore = create<SettingsState>()(
 
         set((state) =>
           updateActiveProject(state, (p) => {
-            let customPackages = [...p.customPackages]
+            const customPackages = [...p.customPackages]
             let trackedPackageIds = [...p.trackedPackageIds]
             const configuredVersions = { ...p.configuredVersions }
 
@@ -284,15 +309,13 @@ export const useSettingsStore = create<SettingsState>()(
               configuredVersions[trimmed] = version
               trackedCount += 1
 
-              const catalogEntry = WATCHLIST_PACKAGES.find((pkg) => pkg.npmPackage === trimmed)
-              if (catalogEntry) {
-                if (!trackedPackageIds.includes(catalogEntry.id)) {
-                  trackedPackageIds.push(catalogEntry.id)
+              const existing = customPackages.find((pkg) => pkg.npmPackage === trimmed)
+              if (existing) {
+                if (!trackedPackageIds.includes(existing.id)) {
+                  trackedPackageIds.push(existing.id)
                 }
                 continue
               }
-
-              if (customPackages.some((pkg) => pkg.npmPackage === trimmed)) continue
 
               const custom = createCustomPackage(trimmed)
               customPackages.push(custom)
@@ -313,20 +336,7 @@ export const useSettingsStore = create<SettingsState>()(
       importFromStack: (input) => {
         const active = getActiveProject(get())
         if (!active) {
-          return {
-            matched: [],
-            missing: [],
-            discovered: [],
-            packagesFromPackageJson: [],
-            discoveredFromPackageJson: [],
-            discoveredFromLockfileOnly: [],
-            importedVersions: {},
-            nodeVersion: null,
-            enginesNode: null,
-            lockfileFormat: null,
-            source: 'package-json' as const,
-            errors: ['Create a project first'],
-          }
+          return emptyStackImportResult('Create a project first')
         }
 
         const { result, drift } = runStackImport(active, input)
@@ -383,20 +393,7 @@ export const useSettingsStore = create<SettingsState>()(
       applyGitHubImport: ({ packageJson, lockfile, githubSync }) => {
         const active = getActiveProject(get())
         if (!active) {
-          return {
-            matched: [],
-            missing: [],
-            discovered: [],
-            packagesFromPackageJson: [],
-            discoveredFromPackageJson: [],
-            discoveredFromLockfileOnly: [],
-            importedVersions: {},
-            nodeVersion: null,
-            enginesNode: null,
-            lockfileFormat: null,
-            source: 'package-json' as const,
-            errors: ['Create a project first'],
-          }
+          return emptyStackImportResult('Create a project first')
         }
 
         const { result, drift } = runStackImport(active, { packageJson, lockfile })
@@ -435,54 +432,43 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'frontend-radar-settings',
-      version: 5,
+      version: 7,
       migrate: (persisted, version) => {
         if (version === 0) {
           const old = persisted as LegacySettingsState
-          const project = createEmptyProject('My Project', old.configuredVersions ?? initialVersions)
+          const project = createEmptyProject('My Project')
+          if (old.configuredVersions) {
+            project.configuredVersions = old.configuredVersions
+          }
           if (old.nodeVersion) project.nodeVersion = old.nodeVersion
-          return { projects: [project], activeProjectId: project.id }
+          return { projects: [migrateToPackageJsonOnly(project)], activeProjectId: project.id }
         }
         if (version === 1) {
           const state = persisted as SettingsState
           return {
             ...state,
-            projects: state.projects.map((p) => ({
-              ...p,
-              enginesNodeRequirement: (p as Project).enginesNodeRequirement ?? '',
-            })),
+            projects: state.projects.map((p) =>
+              migrateToPackageJsonOnly({
+                ...(p as LegacyProject),
+                enginesNodeRequirement: (p as Project).enginesNodeRequirement ?? '',
+              }),
+            ),
           }
         }
-        if (version === 2) {
-          const state = persisted as SettingsState
+        if (version === 2 || version === 3 || version === 4 || version === 5) {
+          const state = persisted as SettingsState & { projects: LegacyProject[] }
+          return {
+            ...state,
+            projects: state.projects.map((p) => migrateToPackageJsonOnly(p as LegacyProject)),
+          }
+        }
+        if (version === 6) {
+          const state = persisted as SettingsState & { projects: LegacyProject[] }
           return {
             ...state,
             projects: state.projects.map((p) => ({
               ...p,
-              trackedPackageIds: resolveTrackedPackageIds((p as Project).trackedPackageIds),
-            })),
-          }
-        }
-        if (version === 3) {
-          const state = persisted as SettingsState
-          return {
-            ...state,
-            projects: state.projects.map((p) => ({
-              ...p,
-              customPackages: (p as Project).customPackages ?? [],
-              importSnapshot: (p as Project).importSnapshot,
-              lastDriftReport: (p as Project).lastDriftReport,
-            })),
-          }
-        }
-        if (version === 4) {
-          const state = persisted as SettingsState
-          return {
-            ...state,
-            projects: state.projects.map((p) => ({
-              ...p,
-              lockfileGraph: (p as Project).lockfileGraph,
-              githubSync: (p as Project).githubSync,
+              trackedPackageIds: resolveTrackedPackageIds(p.trackedPackageIds, p.customPackages ?? []),
             })),
           }
         }
@@ -491,6 +477,23 @@ export const useSettingsStore = create<SettingsState>()(
     },
   ),
 )
+
+function emptyStackImportResult(error: string): StackImportResult {
+  return {
+    matched: [],
+    missing: [],
+    discovered: [],
+    packagesFromPackageJson: [],
+    discoveredFromPackageJson: [],
+    discoveredFromLockfileOnly: [],
+    importedVersions: {},
+    nodeVersion: null,
+    enginesNode: null,
+    lockfileFormat: null,
+    source: 'package-json',
+    errors: [error],
+  }
+}
 
 export function selectActiveProject(state: SettingsState): Project | null {
   return getActiveProject(state)

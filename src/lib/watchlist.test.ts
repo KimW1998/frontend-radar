@@ -1,42 +1,58 @@
 import { describe, expect, it } from 'vitest'
+import { createCustomPackage } from '@/types/custom-package'
 import {
-  DEFAULT_TRACKED_PACKAGE_IDS,
   getConfiguredPackageCountForProject,
   getTrackedPackages,
   isProjectStackConfigured,
   resolveTrackedPackageIds,
-} from './watchlist'
+} from '@/lib/watchlist'
 
 describe('resolveTrackedPackageIds', () => {
-  it('defaults to full watchlist when empty', () => {
-    expect(resolveTrackedPackageIds(undefined)).toEqual(DEFAULT_TRACKED_PACKAGE_IDS)
-    expect(resolveTrackedPackageIds([])).toEqual(DEFAULT_TRACKED_PACKAGE_IDS)
+  it('falls back to all custom packages when none selected', () => {
+    const customPackages = [createCustomPackage('react'), createCustomPackage('vite')]
+    expect(resolveTrackedPackageIds([], customPackages)).toEqual([
+      customPackages[0].id,
+      customPackages[1].id,
+    ])
   })
 
-  it('filters unknown ids', () => {
-    expect(resolveTrackedPackageIds(['react', 'not-real'])).toEqual(['react'])
+  it('keeps only valid custom package ids', () => {
+    const customPackages = [createCustomPackage('react')]
+    expect(resolveTrackedPackageIds([customPackages[0].id, 'missing'], customPackages)).toEqual([
+      customPackages[0].id,
+    ])
   })
 })
 
 describe('getTrackedPackages', () => {
-  it('returns catalog entries for tracked ids', () => {
-    const packages = getTrackedPackages(['react', 'typescript'])
-
-    expect(packages.map((p) => p.id)).toEqual(['react', 'typescript'])
+  it('returns only checked custom packages', () => {
+    const customPackages = [createCustomPackage('react'), createCustomPackage('vite')]
+    const packages = getTrackedPackages([customPackages[0].id], customPackages)
+    expect(packages.map((pkg) => pkg.npmPackage)).toEqual(['react'])
   })
 })
 
 describe('getConfiguredPackageCountForProject', () => {
-  it('counts configured versions among tracked packages only', () => {
-    const configured = { react: '19.0.0', typescript: '5.7.0', zod: '3.24.0' }
-
-    expect(getConfiguredPackageCountForProject(configured, ['react', 'vitest'])).toBe(1)
+  it('counts checked packages with configured versions', () => {
+    const customPackages = [createCustomPackage('react'), createCustomPackage('vite')]
+    const count = getConfiguredPackageCountForProject(
+      { react: '19.0.0', vite: '' },
+      [customPackages[0].id, customPackages[1].id],
+      customPackages,
+    )
+    expect(count).toBe(1)
   })
 })
 
 describe('isProjectStackConfigured', () => {
-  it('is true when at least one tracked package has a version', () => {
-    expect(isProjectStackConfigured({ react: '19.0.0' }, ['react'])).toBe(true)
-    expect(isProjectStackConfigured({}, ['react'])).toBe(false)
+  it('is true when at least one checked package has a version', () => {
+    const customPackages = [createCustomPackage('react')]
+    expect(
+      isProjectStackConfigured(
+        { react: '19.0.0' },
+        [customPackages[0].id],
+        customPackages,
+      ),
+    ).toBe(true)
   })
 })

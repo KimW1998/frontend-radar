@@ -9,11 +9,11 @@ Developer intelligence dashboard for senior frontend engineers. Monitors your da
 - **Multi-project tracking** — Monitor multiple apps/repos, each with its own package versions and Node runtime
 - **Onboarding wizard** — Guided setup: name project → paste `package.json` → set Node version
 - **Executive Summary** — Critical alerts, pending updates, breaking changes, and recommended actions
-- **Dependency Watchlist** — Version tracking with risk levels, CVE counts, and copy-to-clipboard upgrade commands
-- **Custom watchlist per project** — Choose which of the 16 packages to monitor (Settings → Tracked packages)
+- **Dependency tracking** — Version tracking with risk levels, CVE counts, and copy-to-clipboard upgrade commands
+- **Tracked packages from package.json** — Import your dependencies and choose which to monitor (Settings → Tracked packages)
 - **Lockfile import** — Paste `package-lock.json`, `pnpm-lock.yaml`, or `yarn.lock` for exact installed versions
 - **Version drift detection** — Compare stored versions against a fresh import and see what changed
-- **Custom npm packages** — Track any package beyond the built-in catalog
+- **Custom npm packages** — Add any npm package manually or from lockfile extras
 - **Upgrade plan workflow** — Progress checkboxes, copy-all script, and PR checklist export on `/upgrade-plan`
 - **Browser notifications** — Optional alerts for critical CVEs, major upgrades, and Node EOL
 - **Node.js Upgrade Center** — LTS status, support dates, migration guidance (per project, per developer)
@@ -41,7 +41,7 @@ Open [http://localhost:5173](http://localhost:5173).
 On first visit you'll be guided through **project setup** (`/onboarding`):
 
 1. Name your project (e.g. "Customer Portal")
-2. Paste your `package.json` and optionally a lockfile — we match watchlist packages and resolve exact versions from the lockfile when provided
+2. Paste your `package.json` and optionally a lockfile — we import your direct dependencies and resolve exact versions from the lockfile when provided
 3. Enter the Node version **you run** (`node -v`) — not just `engines.node`
 4. Open the dashboard
 
@@ -66,7 +66,7 @@ Restart the dev server after adding env vars.
 npm test
 ```
 
-Unit tests cover semver parsing, package.json import, health score calculation, watchlist helpers, and empty-state logic.
+Unit tests cover semver parsing, package.json import, health score calculation, tracked-package helpers, and empty-state logic.
 
 ## Projects & Settings
 
@@ -82,7 +82,7 @@ No mock data. The dashboard fetches from public APIs at runtime:
 
 | Source | Endpoint | What you get |
 |--------|----------|--------------|
-| **NPM Registry** | `registry.npmjs.org/{package}/latest` | Latest versions for watchlist packages |
+| **NPM Registry** | `registry.npmjs.org/{package}/latest` | Latest versions for tracked packages |
 | **GitHub Releases** | `/api/github-releases` (Netlify proxy) | Release notes summaries |
 | **OSV** | `api.osv.dev/v1/query` | CVEs for your configured package versions |
 | **Node.js Dist** | `nodejs.org/dist/index.json` | LTS and current release versions |
@@ -112,7 +112,7 @@ Repo imports never use the site owner's token — only the logged-in user's toke
 
 **Release notes proxy (optional site-wide PAT):**
 
-`GITHUB_TOKEN` is optional and only speeds up public release-note fetches for the watchlist (React, Vite, etc.). It is **not** used when importing a user's `package.json` from their repo.
+`GITHUB_TOKEN` is optional and only speeds up public release-note fetches for known open-source repos. It is **not** used when importing a user's `package.json` from their repo.
 
 Verify: `/api/data-health` should show `"githubOAuth": true` after OAuth env vars are set.
 
@@ -131,7 +131,3 @@ npx netlify deploy --prod
 | `npm run preview` | Preview production build |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript check |
-
-## Watchlist Packages
-
-React, React DOM, TypeScript, Vite, TanStack Query, TanStack Router, Zustand, Axios, MUI, Sentry, Okta Auth JS, i18next, Zod, Recharts, Playwright, Vitest.

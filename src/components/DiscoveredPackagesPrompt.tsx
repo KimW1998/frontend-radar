@@ -14,7 +14,7 @@ export function DiscoveredPackagesPrompt({
   importResult,
   onTrackLockfileExtras,
 }: DiscoveredPackagesPromptProps) {
-  const lockfileExtras = importResult.discoveredFromLockfileOnly.slice(0, 24)
+  const lockfileExtras = importResult.discoveredFromLockfileOnly
   const [trackedCount, setTrackedCount] = useState<number | null>(null)
 
   if (lockfileExtras.length === 0) return null
@@ -44,7 +44,7 @@ export function DiscoveredPackagesPrompt({
         <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mb: isDone ? 1.5 : 0 }}>
           {trackedCount === 0
             ? 'Those lockfile packages are already tracked.'
-            : `Added ${trackedCount} lockfile package${trackedCount === 1 ? '' : 's'} to your watchlist with installed versions.`}
+            : `Added ${trackedCount} lockfile package${trackedCount === 1 ? '' : 's'} to your tracked packages with installed versions.`}
         </Alert>
       </Collapse>
 
@@ -53,8 +53,8 @@ export function DiscoveredPackagesPrompt({
           {lockfileExtras.length} additional packages only in your lockfile (transitive / indirect)
           — track any for deeper monitoring:
         </Typography>
-        <Stack direction="row" flexWrap="wrap" gap={0.75} mb={1.5}>
-          {lockfileExtras.slice(0, 16).map((item) => (
+        <Stack direction="row" flexWrap="wrap" gap={0.75} mb={1.5} sx={{ maxHeight: 200, overflow: 'auto' }}>
+          {lockfileExtras.map((item) => (
             <Chip
               key={item.npmPackage}
               label={`${item.npmPackage} ${item.version}`}
@@ -63,9 +63,6 @@ export function DiscoveredPackagesPrompt({
               sx={{ fontFamily: monoFont, fontSize: '0.75rem' }}
             />
           ))}
-          {lockfileExtras.length > 16 && (
-            <Chip label={`+${lockfileExtras.length - 16} more`} size="small" variant="outlined" />
-          )}
         </Stack>
         <Button
           size="medium"
@@ -79,8 +76,8 @@ export function DiscoveredPackagesPrompt({
       </Collapse>
 
       {isDone && trackedCount !== null && trackedCount > 0 && (
-        <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mt: 0.5 }}>
-          {lockfileExtras.slice(0, 8).map((item) => (
+        <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mt: 0.5, maxHeight: 160, overflow: 'auto' }}>
+          {lockfileExtras.map((item) => (
             <Chip
               key={item.npmPackage}
               label={`${item.npmPackage} ${item.version}`}
@@ -90,14 +87,6 @@ export function DiscoveredPackagesPrompt({
               sx={{ fontFamily: monoFont, fontSize: '0.75rem' }}
             />
           ))}
-          {lockfileExtras.length > 8 && (
-            <Chip
-              label={`+${lockfileExtras.length - 8} more tracked`}
-              size="small"
-              color="success"
-              variant="outlined"
-            />
-          )}
         </Stack>
       )}
     </Box>

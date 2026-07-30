@@ -1,4 +1,3 @@
-import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
 import type { PackageCatalogEntry } from '@/data/package-catalog'
 import {
   applyStackImportVersions,
@@ -37,7 +36,7 @@ export function normalizeVersionRange(range: string): string | null {
 
 export function parsePackageJsonInput(
   input: string,
-  packages: PackageCatalogEntry[] = WATCHLIST_PACKAGES,
+  packages: PackageCatalogEntry[] = [],
 ): PackageJsonImportResult {
   const result = parseStackImport(packages, { packageJson: input })
   return {

@@ -1,4 +1,3 @@
-import { DEFAULT_TRACKED_PACKAGE_IDS } from '@/lib/watchlist'
 import type { CustomPackageEntry } from '@/types/custom-package'
 import type { DriftReport, ImportSnapshot } from '@/types/import-snapshot'
 import type { GitHubSyncConfig } from '@/types/github-sync'
@@ -8,10 +7,10 @@ export interface Project {
   id: string
   name: string
   configuredVersions: Record<string, string>
-  /** Package catalog ids to monitor for this project */
-  trackedPackageIds: string[]
-  /** User-added npm packages beyond the built-in catalog */
+  /** All packages discovered from package.json (and lockfile extras) */
   customPackages: CustomPackageEntry[]
+  /** Checked packages to monitor on the dashboard */
+  trackedPackageIds: string[]
   /** Raw engines.node / volta.node from package.json (project requirement) */
   enginesNodeRequirement: string
   /** Node version the developer runs locally or in CI */
@@ -28,14 +27,14 @@ export interface Project {
   updatedAt: string
 }
 
-export function createEmptyProject(name: string, configuredVersions: Record<string, string>): Project {
+export function createEmptyProject(name: string): Project {
   const now = new Date().toISOString()
   return {
     id: crypto.randomUUID(),
     name,
-    configuredVersions: { ...configuredVersions },
-    trackedPackageIds: [...DEFAULT_TRACKED_PACKAGE_IDS],
+    configuredVersions: {},
     customPackages: [],
+    trackedPackageIds: [],
     enginesNodeRequirement: '',
     nodeVersion: '',
     createdAt: now,

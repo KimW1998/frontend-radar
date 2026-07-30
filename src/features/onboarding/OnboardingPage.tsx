@@ -20,8 +20,7 @@ import MemoryIcon from '@mui/icons-material/Memory'
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
-import { getConfiguredPackageCountForProject, getTrackedPackages } from '@/lib/watchlist'
+import { getConfiguredPackageCountForProject } from '@/lib/watchlist'
 import {
   clearOnboardingWizard,
   initialWizardDraftId,
@@ -115,10 +114,6 @@ export function OnboardingPage() {
         workingProject.customPackages,
       )
     : 0
-
-  const trackedCount = workingProject
-    ? getTrackedPackages(workingProject.trackedPackageIds, workingProject.customPackages).length
-    : WATCHLIST_PACKAGES.length
 
   const handleCreateProject = () => {
     const name = projectName.trim() || 'My project'
@@ -290,7 +285,7 @@ export function OnboardingPage() {
                 Import versions
               </Button>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {configuredCount}/{trackedCount} packages configured
+                {configuredCount} package{configuredCount === 1 ? '' : 's'} configured
               </Typography>
             </Stack>
 
@@ -314,8 +309,8 @@ export function OnboardingPage() {
                   </Alert>
                 )}
                 {importResult.packagesFromPackageJson.length > 0 && (
-                  <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.5 }}>
-                    {importResult.packagesFromPackageJson.slice(0, 16).map((item) => (
+                  <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.5, maxHeight: 240, overflow: 'auto' }}>
+                    {importResult.packagesFromPackageJson.map((item) => (
                       <Chip
                         key={item.npmPackage}
                         label={`${item.name} ${item.version}`}
@@ -323,20 +318,13 @@ export function OnboardingPage() {
                         sx={{ fontFamily: monoFont, fontSize: '0.75rem' }}
                       />
                     ))}
-                    {importResult.packagesFromPackageJson.length > 16 && (
-                      <Chip
-                        label={`+${importResult.packagesFromPackageJson.length - 16} more`}
-                        size="small"
-                        variant="outlined"
-                      />
-                    )}
                   </Stack>
                 )}
                 <DiscoveredPackagesPrompt
                   importResult={importResult}
                   onTrackLockfileExtras={() =>
                     trackDiscoveredPackages(
-                      importResult.discoveredFromLockfileOnly.slice(0, 24).map((item) => ({
+                      importResult.discoveredFromLockfileOnly.map((item) => ({
                         npmPackage: item.npmPackage,
                         version: item.version,
                       })),
@@ -397,7 +385,7 @@ export function OnboardingPage() {
               <SummaryRow label="Project" value={workingProject.name} />
               <SummaryRow
                 label="Packages configured"
-                value={`${configuredCount} of ${trackedCount}`}
+                value={`${configuredCount} package${configuredCount === 1 ? '' : 's'}`}
               />
               <SummaryRow
                 label="Node you run"

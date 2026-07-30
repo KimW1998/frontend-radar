@@ -456,7 +456,7 @@ export async function fetchDashboardStackSection(input: DashboardInput): Promise
 
   if (githubTotal === 0) {
     githubStatus = 'unavailable'
-    githubMessage = 'No GitHub repos mapped in watchlist'
+    githubMessage = 'No GitHub repos mapped for tracked packages'
   } else if (githubOk === githubTotal) {
     githubStatus = dataHealth?.githubToken || githubBatch.authenticated ? 'ok' : 'partial'
     githubMessage =

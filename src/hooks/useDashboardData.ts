@@ -13,8 +13,8 @@ import type { CustomPackageEntry } from '@/types/custom-package'
 const STALE_TIME = 5 * 60 * 1000
 const REFETCH_INTERVAL = 15 * 60 * 1000
 const EMPTY_VERSIONS: Record<string, string> = {}
-const EMPTY_TRACKED_IDS: string[] = []
 const EMPTY_CUSTOM_PACKAGES: CustomPackageEntry[] = []
+const EMPTY_TRACKED_IDS: string[] = []
 
 export function useDashboardData(enabled = true) {
   const queryClient = useQueryClient()

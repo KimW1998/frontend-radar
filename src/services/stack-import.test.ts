@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
+import { createCustomPackage } from '@/types/custom-package'
 import { parseStackImport } from './stack-import'
 
 describe('parseStackImport discovered split', () => {
@@ -22,7 +22,14 @@ describe('parseStackImport discovered split', () => {
       },
     })
 
-    const result = parseStackImport(WATCHLIST_PACKAGES, { packageJson, lockfile })
+    const tracked = [createCustomPackage('react')]
+    const result = parseStackImport(tracked.map((custom) => ({
+      id: custom.id,
+      name: custom.name,
+      npmPackage: custom.npmPackage,
+      categories: custom.categories,
+      isCustom: true,
+    })), { packageJson, lockfile })
 
     expect(result.packagesFromPackageJson.map((item) => item.npmPackage)).toEqual(['lodash', 'react'])
     expect(result.discoveredFromPackageJson.map((item) => item.npmPackage)).toEqual(['lodash'])

@@ -1,21 +1,19 @@
-import { WATCHLIST_PACKAGES, type PackageCatalogEntry } from '@/data/package-catalog'
 import { getProjectPackageCatalog } from '@/lib/package-registry'
+import type { PackageCatalogEntry } from '@/data/package-catalog'
 import type { CustomPackageEntry } from '@/types/custom-package'
 
-export const DEFAULT_TRACKED_PACKAGE_IDS = WATCHLIST_PACKAGES.map((pkg) => pkg.id)
-
 export function resolveTrackedPackageIds(
-  trackedPackageIds?: string[],
+  trackedPackageIds: string[] | undefined,
   customPackages: CustomPackageEntry[] = [],
 ): string[] {
-  if (!trackedPackageIds?.length) return [...DEFAULT_TRACKED_PACKAGE_IDS]
-  const valid = new Set(getProjectPackageCatalog(customPackages).map((pkg) => pkg.id))
-  const resolved = trackedPackageIds.filter((id) => valid.has(id))
-  return resolved.length > 0 ? resolved : [...DEFAULT_TRACKED_PACKAGE_IDS]
+  const valid = new Set(customPackages.map((pkg) => pkg.id))
+  const resolved = (trackedPackageIds ?? []).filter((id) => valid.has(id))
+  if (resolved.length > 0) return resolved
+  return customPackages.map((pkg) => pkg.id)
 }
 
 export function getTrackedPackages(
-  trackedPackageIds?: string[],
+  trackedPackageIds: string[] | undefined,
   customPackages: CustomPackageEntry[] = [],
 ): PackageCatalogEntry[] {
   const ids = new Set(resolveTrackedPackageIds(trackedPackageIds, customPackages))
@@ -24,7 +22,7 @@ export function getTrackedPackages(
 
 export function getConfiguredPackageCountForProject(
   configuredVersions: Record<string, string>,
-  trackedPackageIds?: string[],
+  trackedPackageIds: string[] | undefined,
   customPackages: CustomPackageEntry[] = [],
 ): number {
   return getTrackedPackages(trackedPackageIds, customPackages).filter((pkg) =>
@@ -34,7 +32,7 @@ export function getConfiguredPackageCountForProject(
 
 export function isProjectStackConfigured(
   configuredVersions: Record<string, string>,
-  trackedPackageIds?: string[],
+  trackedPackageIds: string[] | undefined,
   customPackages: CustomPackageEntry[] = [],
 ): boolean {
   return getConfiguredPackageCountForProject(configuredVersions, trackedPackageIds, customPackages) > 0

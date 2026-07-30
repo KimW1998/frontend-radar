@@ -4,7 +4,6 @@ import {
   normalizeVersionRange,
   parsePackageJsonInput,
 } from './package-json'
-import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
 import { parseStackImport } from './stack-import'
 
 describe('normalizeVersionRange', () => {
@@ -37,11 +36,11 @@ describe('parsePackageJsonInput', () => {
     },
   })
 
-  it('matches watchlist packages from dependencies and devDependencies', () => {
-    const result = parsePackageJsonInput(sample)
+  it('extracts direct dependencies from package.json', () => {
+    const result = parseStackImport([], { packageJson: sample })
 
     expect(result.errors).toEqual([])
-    expect(result.matched.map((m) => m.npmPackage)).toEqual(
+    expect(result.packagesFromPackageJson.map((m) => m.npmPackage)).toEqual(
       expect.arrayContaining(['react', 'react-dom', 'typescript', 'vite']),
     )
     expect(result.nodeVersion).toBe('20.11.0')
@@ -58,10 +57,9 @@ describe('parsePackageJsonInput', () => {
 
 describe('applyPackageJsonImport', () => {
   it('merges matched versions into existing configured versions', () => {
-    const importResult = parseStackImport(
-      WATCHLIST_PACKAGES,
-      { packageJson: JSON.stringify({ dependencies: { react: '^19.0.0' } }) },
-    )
+    const importResult = parseStackImport([], {
+      packageJson: JSON.stringify({ dependencies: { react: '^19.0.0' } }),
+    })
 
     const next = applyPackageJsonImport({ typescript: '5.0.0' }, importResult)
 
