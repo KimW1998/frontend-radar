@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import type { DashboardData } from '@/types'
 import { useUiStore } from '@/stores'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -52,12 +52,20 @@ function buildNotificationBody(data: DashboardData): { title: string; body: stri
   return null
 }
 
+export type NotificationPermissionResult = 'granted' | 'denied' | 'default' | 'unsupported'
+
+export async function requestStackNotificationPermission(): Promise<NotificationPermissionResult> {
+  if (typeof Notification === 'undefined') return 'unsupported'
+  if (Notification.permission === 'granted') return 'granted'
+  if (Notification.permission === 'denied') return 'denied'
+  return Notification.requestPermission()
+}
+
 export function useStackNotifications(data: DashboardData | undefined, projectName?: string) {
   const notificationsEnabled = useUiStore((s) => s.notificationsEnabled)
   const lastNotificationFingerprint = useUiStore((s) => s.lastNotificationFingerprint)
   const setLastNotificationFingerprint = useUiStore((s) => s.setLastNotificationFingerprint)
   const activeProjectId = useSettingsStore((s) => s.activeProjectId)
-  const promptedRef = useRef(false)
 
   useEffect(() => {
     if (!data || !notificationsEnabled || !activeProjectId) return
@@ -91,13 +99,6 @@ export function useStackNotifications(data: DashboardData | undefined, projectNa
   ])
 
   return {
-    requestPermission: async () => {
-      if (typeof Notification === 'undefined') return 'unsupported' as const
-      if (Notification.permission === 'granted') return 'granted' as const
-      if (Notification.permission === 'denied') return 'denied' as const
-      if (promptedRef.current) return Notification.permission
-      promptedRef.current = true
-      return Notification.requestPermission()
-    },
+    requestPermission: requestStackNotificationPermission,
   }
 }

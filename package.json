@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "check": "vitest run scripts/stack-check.gate.test.ts"
+    "check": "vitest run src/lib/stack-check.gate.test.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

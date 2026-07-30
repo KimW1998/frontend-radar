@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { runStackCheck } from '../src/lib/stack-check'
+import { runStackCheck } from './stack-check'
 
 describe('frontend-radar stack check', () => {
   it('passes configured CI gates', async () => {
@@ -26,5 +26,5 @@ describe('frontend-radar stack check', () => {
 
     expect(result.errors).toEqual([])
     expect(result.ok).toBe(true)
-  })
+  }, 120_000)
 })

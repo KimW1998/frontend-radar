@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Alert,
   Box,
@@ -68,6 +68,14 @@ export function SettingsPage() {
   const [lockfileInput, setLockfileInput] = useState('')
   const [importResult, setImportResult] = useState<StackImportResult | null>(null)
   const [showManual, setShowManual] = useState(false)
+  const [notificationNotice, setNotificationNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (typeof Notification === 'undefined') return
+    if (notificationsEnabled && Notification.permission !== 'granted') {
+      setNotificationsEnabled(false)
+    }
+  }, [notificationsEnabled, setNotificationsEnabled])
 
   const configuredVersions = activeProject?.configuredVersions ?? {}
   const nodeVersion = activeProject?.nodeVersion ?? ''
@@ -155,15 +163,35 @@ export function SettingsPage() {
                 onChange={async (_, checked) => {
                   if (checked) {
                     const permission = await requestPermission()
-                    setNotificationsEnabled(permission === 'granted')
+                    if (permission === 'granted') {
+                      setNotificationsEnabled(true)
+                      setNotificationNotice(null)
+                      return
+                    }
+                    setNotificationsEnabled(false)
+                    if (permission === 'unsupported') {
+                      setNotificationNotice('Browser notifications are not available in this environment.')
+                    } else if (permission === 'denied') {
+                      setNotificationNotice(
+                        'Notifications are blocked. Allow them in your browser’s site settings for this page.',
+                      )
+                    } else {
+                      setNotificationNotice('Allow notifications when your browser prompts you, then try again.')
+                    }
                     return
                   }
                   setNotificationsEnabled(false)
+                  setNotificationNotice(null)
                 }}
               />
             }
             label="Browser notifications for critical CVEs, major upgrades, and Node EOL"
           />
+          {notificationNotice && (
+            <Alert severity="warning" sx={{ mt: 1.5 }}>
+              {notificationNotice}
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
