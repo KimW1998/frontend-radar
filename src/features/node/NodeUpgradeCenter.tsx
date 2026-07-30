@@ -3,6 +3,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import WarningIcon from '@mui/icons-material/Warning'
 import ErrorIcon from '@mui/icons-material/Error'
 import type { NodeStatus } from '@/types'
+import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
 import { DetailCard } from '@/components/DetailCard'
 import { StatBox } from '@/components/Badges'
@@ -11,6 +12,7 @@ import { cardSx, monoFont } from '@/theme'
 
 interface NodeUpgradeCenterProps {
   nodeStatus: NodeStatus
+  isConfigured?: boolean
 }
 
 const STATUS_CONFIG = {
@@ -21,8 +23,25 @@ const STATUS_CONFIG = {
 
 const EFFORT_COLORS = { low: '#22C55E', medium: '#EAB308', high: '#EF4444' }
 
-export function NodeUpgradeCenter({ nodeStatus }: NodeUpgradeCenterProps) {
+export function NodeUpgradeCenter({ nodeStatus, isConfigured = true }: NodeUpgradeCenterProps) {
   const theme = useTheme()
+
+  if (!isConfigured) {
+    return (
+      <SectionCard
+        title="Node.js Upgrade Center"
+        subtitle="LTS tracking, support dates, and migration guidance"
+        id="node-upgrade"
+      >
+        <EmptySectionState
+          variant="not-configured"
+          title="Node version not set for this project"
+          description="Each developer and CI pipeline may run a different Node version. Add yours in Settings or complete onboarding."
+        />
+      </SectionCard>
+    )
+  }
+
   const status = STATUS_CONFIG[nodeStatus.status]
   const nodeDetail = buildNodeDetail(nodeStatus)
 

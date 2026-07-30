@@ -15,6 +15,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import HubIcon from '@mui/icons-material/Hub'
 import type { CuratedSource, KnowledgeArticle } from '@/types/knowledge'
 import { TONE_COLORS, TONE_LABELS } from '@/types/knowledge'
+import { QueryErrorState } from '@/components/QueryErrorState'
 import { useKnowledgeData } from '@/hooks/useKnowledgeData'
 import { DetailCard } from '@/components/DetailCard'
 import { buildArticleDetail } from '@/lib/detail-builders'
@@ -22,7 +23,7 @@ import { cardSx } from '@/theme'
 
 export function TanStackPage() {
   const theme = useTheme()
-  const { data, isLoading, isError, isFetching } = useKnowledgeData()
+  const { data, isLoading, isError, isFetching, refetch, isRefetching } = useKnowledgeData()
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredArticles = useMemo(() => {
@@ -47,12 +48,11 @@ export function TanStackPage() {
 
   if (isError || !data) {
     return (
-      <Box sx={{ textAlign: 'center', py: 8 }}>
-        <Typography variant="h2" sx={{ mb: 1 }}>Couldn't load TanStack reading</Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          Check your connection and try again.
-        </Typography>
-      </Box>
+      <QueryErrorState
+        title="Couldn't load TanStack reading"
+        onRetry={() => refetch()}
+        isRetrying={isRefetching}
+      />
     )
   }
 

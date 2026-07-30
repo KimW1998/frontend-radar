@@ -2,9 +2,11 @@ import { Box, Chip, Link, Stack, Typography, useTheme } from '@mui/material'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import CodeIcon from '@mui/icons-material/Code'
 import type { BreakingChange } from '@/types'
+import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
 import { DetailCard } from '@/components/DetailCard'
 import { buildBreakingChangeDetail } from '@/lib/detail-builders'
+import { resolveSectionEmpty, useIsStackConfigured } from '@/lib/section-empty'
 import { useFilterStore, matchesFilter } from '@/stores'
 import { cardSx, monoFont } from '@/theme'
 
@@ -14,7 +16,8 @@ interface BreakingChangesFeedProps {
 
 export function BreakingChangesFeed({ changes }: BreakingChangesFeedProps) {
   const theme = useTheme()
-  const { activeFilters, searchQuery } = useFilterStore()
+  const isConfigured = useIsStackConfigured()
+  const { activeFilters, searchQuery, clearFilters } = useFilterStore()
 
   const filtered = changes.filter((c) =>
     matchesFilter(c.categories, activeFilters, searchQuery, [
@@ -26,6 +29,11 @@ export function BreakingChangesFeed({ changes }: BreakingChangesFeedProps) {
     ]),
   )
 
+  const emptyVariant = resolveSectionEmpty(changes.length, filtered.length, {
+    requiresConfig: true,
+    isConfigured,
+  })
+
   return (
     <SectionCard
       title="Breaking Changes Feed"
@@ -33,10 +41,21 @@ export function BreakingChangesFeed({ changes }: BreakingChangesFeedProps) {
       id="breaking-changes"
     >
       <Stack spacing={1.5}>
-        {filtered.length === 0 && (
-          <Typography variant="body2" sx={{ color: 'text.secondary', py: 2, textAlign: 'center' }}>
-            No breaking changes match current filters.
-          </Typography>
+        {emptyVariant && (
+          <EmptySectionState
+            variant={emptyVariant}
+            title={
+              emptyVariant === 'all-clear'
+                ? 'No major upgrades pending'
+                : undefined
+            }
+            description={
+              emptyVariant === 'all-clear'
+                ? 'None of your configured packages have a major version bump available.'
+                : undefined
+            }
+            onClearFilters={clearFilters}
+          />
         )}
         {filtered.map((change) => (
           <DetailCard key={change.id} detail={buildBreakingChangeDetail(change)} sx={{ ...cardSx(theme), pr: 5 }}>

@@ -6,9 +6,11 @@ import ScheduleIcon from '@mui/icons-material/Schedule'
 import LightbulbIcon from '@mui/icons-material/Lightbulb'
 import type { ExecutiveAction } from '@/types'
 import { URGENCY_LABELS } from '@/types'
+import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
 import { DetailCard } from '@/components/DetailCard'
 import { buildExecutiveDetail } from '@/lib/detail-builders'
+import { resolveSectionEmpty, useIsStackConfigured } from '@/lib/section-empty'
 import { useFilterStore, matchesFilter } from '@/stores'
 import { cardSx } from '@/theme'
 
@@ -28,11 +30,17 @@ interface ExecutiveSummaryProps {
 
 export function ExecutiveSummary({ actions }: ExecutiveSummaryProps) {
   const theme = useTheme()
-  const { activeFilters, searchQuery } = useFilterStore()
+  const isConfigured = useIsStackConfigured()
+  const { activeFilters, searchQuery, clearFilters } = useFilterStore()
 
   const filtered = actions.filter((a) =>
     matchesFilter(a.categories, activeFilters, searchQuery, [a.title, a.why, a.action]),
   )
+
+  const emptyVariant = resolveSectionEmpty(actions.length, filtered.length, {
+    requiresConfig: true,
+    isConfigured,
+  })
 
   return (
     <SectionCard
@@ -41,10 +49,21 @@ export function ExecutiveSummary({ actions }: ExecutiveSummaryProps) {
       id="executive-summary"
     >
       <Stack spacing={1.5}>
-        {filtered.length === 0 && (
-          <Typography variant="body2" sx={{ color: 'text.secondary', py: 2, textAlign: 'center' }}>
-            No items match current filters.
-          </Typography>
+        {emptyVariant && (
+          <EmptySectionState
+            variant={emptyVariant}
+            title={
+              emptyVariant === 'all-clear'
+                ? 'Nothing urgent right now'
+                : undefined
+            }
+            description={
+              emptyVariant === 'all-clear'
+                ? 'Your stack looks good — no critical actions at the moment.'
+                : undefined
+            }
+            onClearFilters={clearFilters}
+          />
         )}
         {filtered.map((action) => (
           <DetailCard key={action.id} detail={buildExecutiveDetail(action)} sx={{ ...cardSx(theme), pr: 5 }}>

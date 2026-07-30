@@ -1,10 +1,12 @@
 import { Box, Link, Stack, Typography, useTheme } from '@mui/material'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import type { SecurityAlert } from '@/types'
+import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
 import { SeverityBadge } from '@/components/Badges'
 import { DetailCard } from '@/components/DetailCard'
 import { buildSecurityDetail } from '@/lib/detail-builders'
+import { resolveSectionEmpty, useIsStackConfigured } from '@/lib/section-empty'
 import { useFilterStore, matchesFilter } from '@/stores'
 import { cardSx, monoFont } from '@/theme'
 
@@ -14,7 +16,8 @@ interface SecurityCenterProps {
 
 export function SecurityCenter({ alerts }: SecurityCenterProps) {
   const theme = useTheme()
-  const { activeFilters, searchQuery } = useFilterStore()
+  const isConfigured = useIsStackConfigured()
+  const { activeFilters, searchQuery, clearFilters } = useFilterStore()
 
   const filtered = alerts
     .filter((a) =>
@@ -29,6 +32,11 @@ export function SecurityCenter({ alerts }: SecurityCenterProps) {
       return order[a.severity] - order[b.severity]
     })
 
+  const emptyVariant = resolveSectionEmpty(alerts.length, filtered.length, {
+    requiresConfig: true,
+    isConfigured,
+  })
+
   return (
     <SectionCard
       title="Security Center"
@@ -36,10 +44,21 @@ export function SecurityCenter({ alerts }: SecurityCenterProps) {
       id="security-center"
     >
       <Stack spacing={1}>
-        {filtered.length === 0 && (
-          <Typography variant="body2" sx={{ color: 'text.secondary', py: 2, textAlign: 'center' }}>
-            No security alerts match current filters.
-          </Typography>
+        {emptyVariant && (
+          <EmptySectionState
+            variant={emptyVariant}
+            title={
+              emptyVariant === 'all-clear'
+                ? 'No known vulnerabilities'
+                : undefined
+            }
+            description={
+              emptyVariant === 'all-clear'
+                ? 'OSV found no CVEs affecting your configured package versions.'
+                : undefined
+            }
+            onClearFilters={clearFilters}
+          />
         )}
         {filtered.map((alert) => (
           <DetailCard key={alert.id} detail={buildSecurityDetail(alert)} sx={{ ...cardSx(theme), pr: 5 }}>

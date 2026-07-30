@@ -15,6 +15,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import AutoStoriesIcon from '@mui/icons-material/AutoStories'
 import { FILTER_LABELS, type FilterCategory } from '@/types'
 import { type CuratedSource } from '@/types/knowledge'
+import { QueryErrorState } from '@/components/QueryErrorState'
 import { useKnowledgeData } from '@/hooks/useKnowledgeData'
 import { matchesFilter } from '@/stores'
 import { cardSx } from '@/theme'
@@ -31,7 +32,7 @@ const TOPIC_FILTERS: FilterCategory[] = [
 
 export function NewsPage() {
   const theme = useTheme()
-  const { data, isLoading, isError, isFetching } = useKnowledgeData()
+  const { data, isLoading, isError, isFetching, refetch, isRefetching } = useKnowledgeData()
   const [topicFilters, setTopicFilters] = useState<FilterCategory[]>([])
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -61,12 +62,11 @@ export function NewsPage() {
 
   if (isError || !data) {
     return (
-      <Box sx={{ textAlign: 'center', py: 8 }}>
-        <Typography variant="h2" sx={{ mb: 1 }}>Couldn't load articles</Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          Check your connection and try again.
-        </Typography>
-      </Box>
+      <QueryErrorState
+        title="Couldn't load articles"
+        onRetry={() => refetch()}
+        isRetrying={isRefetching}
+      />
     )
   }
 

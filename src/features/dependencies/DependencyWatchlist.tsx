@@ -2,10 +2,12 @@ import { Box, Link, Stack, Typography } from '@mui/material'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import type { Dependency } from '@/types'
 import { RISK_COLORS } from '@/types'
+import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
 import { RiskBadge } from '@/components/Badges'
 import { DetailCard } from '@/components/DetailCard'
 import { buildDependencyDetail } from '@/lib/detail-builders'
+import { resolveSectionEmpty, useIsStackConfigured } from '@/lib/section-empty'
 import { useFilterStore, matchesFilter } from '@/stores'
 import { monoFont } from '@/theme'
 
@@ -14,7 +16,8 @@ interface DependencyWatchlistProps {
 }
 
 export function DependencyWatchlist({ dependencies }: DependencyWatchlistProps) {
-  const { activeFilters, searchQuery } = useFilterStore()
+  const isConfigured = useIsStackConfigured()
+  const { activeFilters, searchQuery, clearFilters } = useFilterStore()
 
   const filtered = dependencies.filter((d) =>
     matchesFilter(d.categories, activeFilters, searchQuery, [
@@ -26,6 +29,11 @@ export function DependencyWatchlist({ dependencies }: DependencyWatchlistProps) 
     ]),
   )
 
+  const emptyVariant = resolveSectionEmpty(dependencies.length, filtered.length, {
+    requiresConfig: true,
+    isConfigured,
+  })
+
   return (
     <SectionCard
       title="Dependency Watchlist"
@@ -33,10 +41,8 @@ export function DependencyWatchlist({ dependencies }: DependencyWatchlistProps) 
       id="dependency-watchlist"
     >
       <Stack spacing={1}>
-        {filtered.length === 0 && (
-          <Typography variant="body2" sx={{ color: 'text.secondary', py: 2, textAlign: 'center' }}>
-            No dependencies match current filters.
-          </Typography>
+        {emptyVariant && (
+          <EmptySectionState variant={emptyVariant} onClearFilters={clearFilters} />
         )}
         {filtered.map((dep) => (
           <DetailCard

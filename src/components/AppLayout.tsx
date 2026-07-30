@@ -30,6 +30,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import AutoStoriesIcon from '@mui/icons-material/AutoStories'
 import { DataSourcesIndicator } from '@/components/DataSourcesIndicator'
 import { DetailDialog } from '@/components/DetailDialog'
+import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import type { DataSourceStatus } from '@/types'
 import { Link, useRouterState } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
@@ -152,6 +153,8 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
             </Box>
           </Stack>
         </Box>
+
+        <ProjectSwitcher />
 
         <List sx={{ px: 1, py: 1 }}>
           {TOP_NAV.map((item) => (

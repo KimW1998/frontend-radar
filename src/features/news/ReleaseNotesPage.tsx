@@ -12,6 +12,7 @@ import {
 import SearchIcon from '@mui/icons-material/Search'
 import NewReleasesIcon from '@mui/icons-material/NewReleases'
 import { FILTER_LABELS, type FilterCategory } from '@/types'
+import { QueryErrorState } from '@/components/QueryErrorState'
 import { useKnowledgeData } from '@/hooks/useKnowledgeData'
 import { matchesFilter } from '@/stores'
 import { cardSx } from '@/theme'
@@ -28,7 +29,7 @@ const TOPIC_FILTERS: FilterCategory[] = [
 
 export function ReleaseNotesPage() {
   const theme = useTheme()
-  const { data, isLoading, isError, isFetching } = useKnowledgeData()
+  const { data, isLoading, isError, isFetching, refetch, isRefetching } = useKnowledgeData()
   const [topicFilters, setTopicFilters] = useState<FilterCategory[]>([])
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -58,12 +59,11 @@ export function ReleaseNotesPage() {
 
   if (isError || !data) {
     return (
-      <Box sx={{ textAlign: 'center', py: 8 }}>
-        <Typography variant="h2" sx={{ mb: 1 }}>Couldn't load release notes</Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          Check your connection and try again.
-        </Typography>
-      </Box>
+      <QueryErrorState
+        title="Couldn't load release notes"
+        onRetry={() => refetch()}
+        isRetrying={isRefetching}
+      />
     )
   }
 

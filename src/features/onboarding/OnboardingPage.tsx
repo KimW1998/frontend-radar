@@ -1,0 +1,310 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Stack,
+  Step,
+  StepLabel,
+  Stepper,
+  TextField,
+  Typography,
+} from '@mui/material'
+import ContentPasteIcon from '@mui/icons-material/ContentPaste'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import FolderOpenIcon from '@mui/icons-material/FolderOpen'
+import MemoryIcon from '@mui/icons-material/Memory'
+import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
+import { getConfiguredPackageCount } from '@/lib/section-empty'
+import { useActiveProject } from '@/hooks/useActiveProject'
+import type { PackageJsonImportResult } from '@/services/package-json'
+import { useSettingsStore } from '@/stores'
+import { monoFont } from '@/theme'
+
+const STEPS = ['Project', 'package.json', 'Node.js', 'Review']
+
+export function OnboardingPage() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const activeProject = useActiveProject()
+  const { createProject, setActiveProject, updateProject, importFromPackageJson, projects } =
+    useSettingsStore()
+
+  const [step, setStep] = useState(0)
+  const [projectName, setProjectName] = useState('')
+  const [draftProjectId, setDraftProjectId] = useState<string | null>(null)
+  const [packageJsonInput, setPackageJsonInput] = useState('')
+  const [importResult, setImportResult] = useState<PackageJsonImportResult | null>(null)
+  const [nodeVersion, setNodeVersion] = useState('')
+
+  const workingProject = useMemo(() => {
+    const id = draftProjectId ?? activeProject?.id
+    if (!id) return null
+    return projects.find((p) => p.id === id) ?? null
+  }, [draftProjectId, activeProject, projects])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('new') === 'true' || params.get('new') === '1') return
+
+    if (activeProject && !draftProjectId) {
+      const count = getConfiguredPackageCount(activeProject.configuredVersions)
+      if (count === 0) {
+        setDraftProjectId(activeProject.id)
+        setProjectName(activeProject.name)
+        setNodeVersion(activeProject.nodeVersion)
+        setStep(activeProject.name ? 1 : 0)
+      }
+    }
+  }, [activeProject, draftProjectId])
+
+  const configuredCount = workingProject
+    ? getConfiguredPackageCount(workingProject.configuredVersions)
+    : 0
+
+  const handleCreateProject = () => {
+    const name = projectName.trim() || 'My project'
+    const id = createProject(name)
+    setDraftProjectId(id)
+    setStep(1)
+  }
+
+  const handleImport = () => {
+    if (!workingProject) {
+      const id = createProject(projectName.trim() || 'My project')
+      setDraftProjectId(id)
+      setActiveProject(id)
+    }
+    const result = importFromPackageJson(packageJsonInput)
+    setImportResult(result)
+    if (result.nodeVersion) setNodeVersion(result.nodeVersion)
+  }
+
+  const handleSaveNode = () => {
+    if (!workingProject) return
+    updateProject(workingProject.id, { nodeVersion: nodeVersion.trim() })
+    setStep(3)
+  }
+
+  const handleFinish = () => {
+    if (workingProject) {
+      setActiveProject(workingProject.id)
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    }
+    navigate({ to: '/' })
+  }
+
+  const canContinueFromImport = configuredCount > 0
+
+  return (
+    <Box sx={{ maxWidth: 720, mx: 'auto' }}>
+      <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+        <RocketLaunchIcon sx={{ color: 'primary.main' }} />
+        <Typography variant="h1">Set up your project</Typography>
+      </Stack>
+      <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+        Frontend Radar tracks dependencies per project. Each teammate can add their own projects
+        with their package versions and Node runtime.
+      </Typography>
+
+      <Stepper activeStep={step} alternativeLabel sx={{ mb: 4 }}>
+        {STEPS.map((label) => (
+          <Step key={label}>
+            <StepLabel>{label}</StepLabel>
+          </Step>
+        ))}
+      </Stepper>
+
+      {step === 0 && (
+        <Card>
+          <CardContent>
+            <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+              <FolderOpenIcon sx={{ color: 'primary.main' }} />
+              <Typography variant="h3">Name your project</Typography>
+            </Stack>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+              Use a name that identifies the app or repo — e.g. &quot;Customer Portal&quot; or
+              &quot;Design System&quot;.
+            </Typography>
+            <TextField
+              fullWidth
+              label="Project name"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              placeholder="My frontend app"
+              sx={{ mb: 2 }}
+              autoFocus
+            />
+            <Stack direction="row" spacing={1}>
+              <Button variant="contained" onClick={handleCreateProject}>
+                Continue
+              </Button>
+              {projects.length > 0 && (
+                <Button component={Link} to="/">
+                  Cancel
+                </Button>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 1 && (
+        <Card>
+          <CardContent>
+            <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+              <ContentPasteIcon sx={{ color: 'primary.main' }} />
+              <Typography variant="h3">Paste package.json</Typography>
+            </Stack>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+              We&apos;ll match dependencies against the {WATCHLIST_PACKAGES.length}-package watchlist
+              and detect your Node engine requirement.
+            </Typography>
+            <TextField
+              multiline
+              minRows={10}
+              maxRows={18}
+              fullWidth
+              placeholder={`{\n  "dependencies": {\n    "react": "^19.0.0",\n    "vite": "^6.1.0"\n  },\n  "engines": {\n    "node": ">=22.14.0"\n  }\n}`}
+              value={packageJsonInput}
+              onChange={(e) => setPackageJsonInput(e.target.value)}
+              sx={{
+                mb: 2,
+                '& textarea': { fontFamily: monoFont, fontSize: '0.8125rem', lineHeight: 1.5 },
+              }}
+            />
+            <Stack direction="row" spacing={1} alignItems="center" mb={2}>
+              <Button variant="contained" onClick={handleImport} disabled={!packageJsonInput.trim()}>
+                Import versions
+              </Button>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                {configuredCount}/{WATCHLIST_PACKAGES.length} packages matched
+              </Typography>
+            </Stack>
+
+            {importResult && (
+              <Box sx={{ mb: 2 }}>
+                {importResult.errors.length > 0 && (
+                  <Alert severity="warning" sx={{ mb: 1.5 }}>
+                    {importResult.errors.join(' ')}
+                  </Alert>
+                )}
+                {importResult.matched.length > 0 ? (
+                  <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mb: 1.5 }}>
+                    Found {importResult.matched.length} watchlist package
+                    {importResult.matched.length !== 1 ? 's' : ''}
+                  </Alert>
+                ) : (
+                  <Alert severity="error">No matching packages found.</Alert>
+                )}
+                {importResult.matched.length > 0 && (
+                  <Stack direction="row" flexWrap="wrap" gap={0.75}>
+                    {importResult.matched.map((item) => (
+                      <Chip
+                        key={item.npmPackage}
+                        label={`${item.name} ${item.version}`}
+                        size="small"
+                        sx={{ fontFamily: monoFont, fontSize: '0.75rem' }}
+                      />
+                    ))}
+                  </Stack>
+                )}
+              </Box>
+            )}
+
+            <Stack direction="row" spacing={1}>
+              <Button onClick={() => setStep(0)}>Back</Button>
+              <Button variant="contained" onClick={() => setStep(2)} disabled={!canContinueFromImport}>
+                Continue
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 2 && (
+        <Card>
+          <CardContent>
+            <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+              <MemoryIcon sx={{ color: 'primary.main' }} />
+              <Typography variant="h3">Your Node.js version</Typography>
+            </Stack>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+              We track the Node version <strong>you</strong> use — not just what the app declares.
+              Run <code style={{ fontFamily: monoFont }}>node -v</code> in your terminal and enter
+              that value, or use the version your CI pipeline runs.
+            </Typography>
+            <TextField
+              label="Node version you run"
+              value={nodeVersion}
+              onChange={(e) => setNodeVersion(e.target.value)}
+              placeholder="e.g. 22.14.0"
+              sx={{ width: 280, mb: 2, '& input': { fontFamily: monoFont } }}
+              helperText="We may pre-fill from package.json engines.node. Always confirm with node -v."
+            />
+            <Stack direction="row" spacing={1}>
+              <Button onClick={() => setStep(1)}>Back</Button>
+              <Button variant="contained" onClick={handleSaveNode} disabled={!nodeVersion.trim()}>
+                Continue
+              </Button>
+              <Button onClick={() => setStep(3)} sx={{ color: 'text.secondary' }}>
+                Skip for now
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 3 && workingProject && (
+        <Card>
+          <CardContent>
+            <Typography variant="h3" sx={{ mb: 2 }}>
+              Ready to track {workingProject.name}
+            </Typography>
+            <Stack spacing={1.5} sx={{ mb: 3 }}>
+              <SummaryRow label="Project" value={workingProject.name} />
+              <SummaryRow
+                label="Packages configured"
+                value={`${configuredCount} of ${WATCHLIST_PACKAGES.length}`}
+              />
+              <SummaryRow
+                label="Node.js"
+                value={nodeVersion.trim() || workingProject.nodeVersion || 'Not set'}
+              />
+            </Stack>
+            {configuredCount === 0 && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                No packages matched yet — you can finish now and import package.json later in Settings.
+              </Alert>
+            )}
+            <Stack direction="row" spacing={1}>
+              <Button onClick={() => setStep(2)}>Back</Button>
+              <Button variant="contained" onClick={handleFinish}>
+                Open dashboard
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  )
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <Stack direction="row" justifyContent="space-between">
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ fontFamily: monoFont, fontWeight: 600 }}>
+        {value}
+      </Typography>
+    </Stack>
+  )
+}

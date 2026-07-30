@@ -1,16 +1,11 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { FilterCategory } from '@/types'
-import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
-import {
-  applyPackageJsonImport,
-  parsePackageJsonInput,
-  type PackageJsonImportResult,
-} from '@/services/package-json'
 
-const initialVersions = Object.fromEntries(
-  WATCHLIST_PACKAGES.map((p) => [p.npmPackage, '']),
-)
+export {
+  useSettingsStore,
+  selectActiveProject,
+} from '@/stores/settings-store'
 
 interface FilterState {
   activeFilters: FilterCategory[]
@@ -34,37 +29,6 @@ export const useFilterStore = create<FilterState>()((set) => ({
   clearFilters: () => set({ activeFilters: [], searchQuery: '' }),
   setSearchQuery: (query) => set({ searchQuery: query }),
 }))
-
-interface SettingsState {
-  configuredVersions: Record<string, string>
-  nodeVersion: string
-  setConfiguredVersion: (pkg: string, version: string) => void
-  setNodeVersion: (version: string) => void
-  importFromPackageJson: (json: string) => PackageJsonImportResult
-}
-
-export const useSettingsStore = create<SettingsState>()(
-  persist(
-    (set) => ({
-      configuredVersions: initialVersions,
-      nodeVersion: '22.14.0',
-      setConfiguredVersion: (pkg, version) =>
-        set((state) => ({
-          configuredVersions: { ...state.configuredVersions, [pkg]: version },
-        })),
-      setNodeVersion: (version) => set({ nodeVersion: version }),
-      importFromPackageJson: (json) => {
-        const result = parsePackageJsonInput(json)
-        set((state) => ({
-          configuredVersions: applyPackageJsonImport(state.configuredVersions, result),
-          nodeVersion: result.nodeVersion ?? state.nodeVersion,
-        }))
-        return result
-      },
-    }),
-    { name: 'frontend-radar-settings' },
-  ),
-)
 
 interface UiState {
   sidebarOpen: boolean

@@ -6,6 +6,7 @@ import { NewsPage } from '@/features/news/NewsPage'
 import { ReleaseNotesPage } from '@/features/news/ReleaseNotesPage'
 import { TanStackPage } from '@/features/news/TanStackPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
+import { OnboardingPage } from '@/features/onboarding/OnboardingPage'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { useKnowledgeData } from '@/hooks/useKnowledgeData'
 
@@ -64,7 +65,20 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, newsRoute, releaseNotesRoute, tanStackRoute, settingsRoute])
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/onboarding',
+  component: OnboardingPage,
+})
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  newsRoute,
+  releaseNotesRoute,
+  tanStackRoute,
+  settingsRoute,
+  onboardingRoute,
+])
 
 export const router = createRouter({ routeTree })
 
