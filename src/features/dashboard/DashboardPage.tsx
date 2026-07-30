@@ -8,6 +8,8 @@ import { SectionSkeleton } from '@/components/SectionSkeleton'
 import { ExecutiveSummary } from '@/features/executive/ExecutiveSummary'
 import { HealthScoreWidget } from '@/features/health/HealthScoreWidget'
 import { UpgradePlanTeaser } from '@/features/upgrade-plan/UpgradePlanContent'
+import { VersionDriftBanner } from '@/components/VersionDriftBanner'
+import { useStackNotifications } from '@/hooks/useStackNotifications'
 import { DependencyWatchlist } from '@/features/dependencies/DependencyWatchlist'
 import { NodeUpgradeCenter } from '@/features/node/NodeUpgradeCenter'
 import { SecurityCenter } from '@/features/security/SecurityCenter'
@@ -15,6 +17,7 @@ import { BreakingChangesFeed } from '@/features/breaking/BreakingChangesFeed'
 import { useActiveProject, useIsNodeConfigured } from '@/hooks/useActiveProject'
 import { useConfiguredPackageCount } from '@/lib/section-empty'
 import { useDashboardData } from '@/hooks/useDashboardData'
+import { useSettingsStore } from '@/stores'
 
 export function DashboardPage() {
   const activeProject = useActiveProject()
@@ -29,7 +32,10 @@ export function DashboardPage() {
     refetch,
     healthScore,
     executiveActions,
+    data,
   } = useDashboardData()
+  const clearDriftReport = useSettingsStore((s) => s.clearDriftReport)
+  useStackNotifications(data, activeProject?.name)
 
   const stackReady = Boolean(stackQuery.data)
   const nodeReady = Boolean(nodeQuery.data)
@@ -81,6 +87,14 @@ export function DashboardPage() {
         <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
           Refreshing live data…
         </Typography>
+      )}
+
+      {stackReady && (
+        <VersionDriftBanner
+          driftReport={activeProject.lastDriftReport}
+          importSnapshot={activeProject.importSnapshot}
+          onDismiss={clearDriftReport}
+        />
       )}
 
       {stackReady ? (

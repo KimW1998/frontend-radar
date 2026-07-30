@@ -11,6 +11,11 @@ Developer intelligence dashboard for senior frontend engineers. Monitors your da
 - **Executive Summary** — Critical alerts, pending updates, breaking changes, and recommended actions
 - **Dependency Watchlist** — Version tracking with risk levels, CVE counts, and copy-to-clipboard upgrade commands
 - **Custom watchlist per project** — Choose which of the 16 packages to monitor (Settings → Tracked packages)
+- **Lockfile import** — Paste `package-lock.json`, `pnpm-lock.yaml`, or `yarn.lock` for exact installed versions
+- **Version drift detection** — Compare stored versions against a fresh import and see what changed
+- **Custom npm packages** — Track any package beyond the built-in catalog
+- **Upgrade plan workflow** — Progress checkboxes, copy-all script, and PR checklist export on `/upgrade-plan`
+- **Browser notifications** — Optional alerts for critical CVEs, major upgrades, and Node EOL
 - **Node.js Upgrade Center** — LTS status, support dates, migration guidance (per project, per developer)
 - **Security Center** — CVEs and advisories from OSV with one-click fix commands
 - **Breaking Changes Feed** — Migration guidance from GitHub release notes
@@ -36,7 +41,7 @@ Open [http://localhost:5173](http://localhost:5173).
 On first visit you'll be guided through **project setup** (`/onboarding`):
 
 1. Name your project (e.g. "Customer Portal")
-2. Paste your `package.json` — we match 16 watchlist packages
+2. Paste your `package.json` and optionally a lockfile — we match watchlist packages and resolve exact versions from the lockfile when provided
 3. Enter the Node version **you run** (`node -v`) — not just `engines.node`
 4. Open the dashboard
 
@@ -66,7 +71,7 @@ Unit tests cover semver parsing, package.json import, health score calculation, 
 ## Projects & Settings
 
 - **Sidebar project switcher** — Switch between tracked projects or add a new one
-- **Settings** — Manage projects, pick tracked packages, re-import `package.json`, edit package versions manually
+- **Settings** — Manage projects, pick tracked packages, import package.json + lockfile, add custom packages, edit versions manually
 - **Package manager preference** — Choose npm, pnpm, or yarn for upgrade command copy buttons
 
 The dashboard stays empty until at least one package version is configured — we don't show misleading "latest only" data without knowing your installed versions.

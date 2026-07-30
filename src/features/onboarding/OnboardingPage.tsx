@@ -21,27 +21,28 @@ import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
-import { getConfiguredPackageCountForProject } from '@/lib/watchlist'
+import { getConfiguredPackageCountForProject, getTrackedPackages } from '@/lib/watchlist'
 import { useActiveProject } from '@/hooks/useActiveProject'
-import type { PackageJsonImportResult } from '@/services/package-json'
+import type { StackImportResult } from '@/services/stack-import'
 import { useSettingsStore } from '@/stores'
 import { monoFont } from '@/theme'
 import { NodeVersionFields } from '@/components/NodeVersionFields'
 
-const STEPS = ['Project', 'package.json', 'Node.js', 'Review']
+const STEPS = ['Project', 'Stack import', 'Node.js', 'Review']
 
 export function OnboardingPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const activeProject = useActiveProject()
-  const { createProject, setActiveProject, updateProject, importFromPackageJson, projects } =
+  const { createProject, setActiveProject, updateProject, importFromStack, trackDiscoveredPackages, projects } =
     useSettingsStore()
 
   const [step, setStep] = useState(0)
   const [projectName, setProjectName] = useState('')
   const [draftProjectId, setDraftProjectId] = useState<string | null>(null)
   const [packageJsonInput, setPackageJsonInput] = useState('')
-  const [importResult, setImportResult] = useState<PackageJsonImportResult | null>(null)
+  const [lockfileInput, setLockfileInput] = useState('')
+  const [importResult, setImportResult] = useState<StackImportResult | null>(null)
   const [nodeVersion, setNodeVersion] = useState('')
 
   const workingProject = useMemo(() => {
@@ -58,6 +59,7 @@ export function OnboardingPage() {
       const count = getConfiguredPackageCountForProject(
         activeProject.configuredVersions,
         activeProject.trackedPackageIds,
+        activeProject.customPackages,
       )
       if (count === 0) {
         setDraftProjectId(activeProject.id)
@@ -72,10 +74,13 @@ export function OnboardingPage() {
     ? getConfiguredPackageCountForProject(
         workingProject.configuredVersions,
         workingProject.trackedPackageIds,
+        workingProject.customPackages,
       )
     : 0
 
-  const trackedCount = workingProject?.trackedPackageIds.length ?? WATCHLIST_PACKAGES.length
+  const trackedCount = workingProject
+    ? getTrackedPackages(workingProject.trackedPackageIds, workingProject.customPackages).length
+    : WATCHLIST_PACKAGES.length
 
   const handleCreateProject = () => {
     const name = projectName.trim() || 'My project'
@@ -90,10 +95,12 @@ export function OnboardingPage() {
       setDraftProjectId(id)
       setActiveProject(id)
     }
-    const result = importFromPackageJson(packageJsonInput)
+    const result = importFromStack({ packageJson: packageJsonInput, lockfile: lockfileInput })
     setImportResult(result)
     if (result.nodeVersion && !nodeVersion.trim()) setNodeVersion(result.nodeVersion)
   }
+
+  const canImport = packageJsonInput.trim().length > 0 || lockfileInput.trim().length > 0
 
   const handleSaveNode = () => {
     if (!workingProject) return
@@ -169,17 +176,19 @@ export function OnboardingPage() {
           <CardContent>
             <Stack direction="row" alignItems="center" spacing={1} mb={1}>
               <ContentPasteIcon sx={{ color: 'primary.main' }} />
-              <Typography variant="h3">Paste package.json</Typography>
+              <Typography variant="h3">Import your stack</Typography>
             </Stack>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-              We&apos;ll match dependencies against the {WATCHLIST_PACKAGES.length}-package watchlist
-              and detect your Node engine requirement.
+              Paste your <code style={{ fontFamily: monoFont }}>package.json</code> and optionally a
+              lockfile for exact installed versions. Lockfile versions take precedence over ranges in
+              package.json.
             </Typography>
             <TextField
               multiline
-              minRows={10}
-              maxRows={18}
+              minRows={8}
+              maxRows={16}
               fullWidth
+              label="package.json"
               placeholder={`{\n  "dependencies": {\n    "react": "^19.0.0",\n    "vite": "^6.1.0"\n  },\n  "engines": {\n    "node": ">=22.14.0"\n  }\n}`}
               value={packageJsonInput}
               onChange={(e) => setPackageJsonInput(e.target.value)}
@@ -188,8 +197,22 @@ export function OnboardingPage() {
                 '& textarea': { fontFamily: monoFont, fontSize: '0.8125rem', lineHeight: 1.5 },
               }}
             />
+            <TextField
+              multiline
+              minRows={5}
+              maxRows={12}
+              fullWidth
+              label="Lockfile (optional)"
+              placeholder="package-lock.json, pnpm-lock.yaml, or yarn.lock"
+              value={lockfileInput}
+              onChange={(e) => setLockfileInput(e.target.value)}
+              sx={{
+                mb: 2,
+                '& textarea': { fontFamily: monoFont, fontSize: '0.75rem', lineHeight: 1.4 },
+              }}
+            />
             <Stack direction="row" spacing={1} alignItems="center" mb={2}>
-              <Button variant="contained" onClick={handleImport} disabled={!packageJsonInput.trim()}>
+              <Button variant="contained" onClick={handleImport} disabled={!canImport}>
                 Import versions
               </Button>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
@@ -213,7 +236,7 @@ export function OnboardingPage() {
                   <Alert severity="error">No matching packages found.</Alert>
                 )}
                 {importResult.matched.length > 0 && (
-                  <Stack direction="row" flexWrap="wrap" gap={0.75}>
+                  <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: importResult.discovered.length > 0 ? 1.5 : 0 }}>
                     {importResult.matched.map((item) => (
                       <Chip
                         key={item.npmPackage}
@@ -223,6 +246,31 @@ export function OnboardingPage() {
                       />
                     ))}
                   </Stack>
+                )}
+                {importResult.discovered.length > 0 && (
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      {importResult.discovered.length} other dependencies found — track any you care about:
+                    </Typography>
+                    <Stack direction="row" flexWrap="wrap" gap={0.75} mb={1}>
+                      {importResult.discovered.slice(0, 8).map((item) => (
+                        <Chip
+                          key={item.npmPackage}
+                          label={`${item.npmPackage} ${item.version}`}
+                          size="small"
+                          variant="outlined"
+                          sx={{ fontFamily: monoFont, fontSize: '0.75rem' }}
+                        />
+                      ))}
+                    </Stack>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => trackDiscoveredPackages(importResult.discovered.slice(0, 8).map((item) => item.npmPackage))}
+                    >
+                      Track discovered packages
+                    </Button>
+                  </Box>
                 )}
               </Box>
             )}
@@ -293,8 +341,8 @@ export function OnboardingPage() {
             </Stack>
             {configuredCount === 0 && (
               <Alert severity="error" sx={{ mb: 2 }}>
-                Import at least one watchlist package from package.json before opening the dashboard.
-                Go back to step 2 and paste a valid package.json.
+                Import at least one tracked package from package.json or a lockfile before opening the dashboard.
+                Go back and paste your project files.
               </Alert>
             )}
             <Stack direction="row" spacing={1}>

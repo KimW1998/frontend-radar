@@ -7,6 +7,8 @@ export {
   selectActiveProject,
 } from '@/stores/settings-store'
 
+export { useUpgradePlanStore } from '@/stores/upgrade-plan-store'
+
 interface FilterState {
   activeFilters: FilterCategory[]
   searchQuery: string
@@ -36,12 +38,16 @@ interface UiState {
   sidebarOpen: boolean
   colorMode: 'dark' | 'light'
   packageManager: PackageManager
+  notificationsEnabled: boolean
+  lastNotificationFingerprint: string
   toggleSidebar: () => void
   closeSidebar: () => void
   setSidebarOpen: (open: boolean) => void
   toggleColorMode: () => void
   setColorMode: (mode: 'dark' | 'light') => void
   setPackageManager: (manager: PackageManager) => void
+  setNotificationsEnabled: (enabled: boolean) => void
+  setLastNotificationFingerprint: (fingerprint: string) => void
 }
 
 export const useUiStore = create<UiState>()(
@@ -50,6 +56,8 @@ export const useUiStore = create<UiState>()(
       sidebarOpen: true,
       colorMode: 'dark',
       packageManager: 'npm',
+      notificationsEnabled: false,
+      lastNotificationFingerprint: '',
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       closeSidebar: () => set({ sidebarOpen: false }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -59,8 +67,18 @@ export const useUiStore = create<UiState>()(
         })),
       setColorMode: (mode) => set({ colorMode: mode }),
       setPackageManager: (manager) => set({ packageManager: manager }),
+      setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
+      setLastNotificationFingerprint: (fingerprint) => set({ lastNotificationFingerprint: fingerprint }),
     }),
-    { name: 'frontend-radar-ui', partialize: (state) => ({ colorMode: state.colorMode, packageManager: state.packageManager }) },
+    {
+      name: 'frontend-radar-ui',
+      partialize: (state) => ({
+        colorMode: state.colorMode,
+        packageManager: state.packageManager,
+        notificationsEnabled: state.notificationsEnabled,
+        lastNotificationFingerprint: state.lastNotificationFingerprint,
+      }),
+    },
   ),
 )
 

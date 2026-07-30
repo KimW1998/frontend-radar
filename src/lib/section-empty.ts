@@ -1,4 +1,5 @@
 import { useActiveProject } from '@/hooks/useActiveProject'
+import type { CustomPackageEntry } from '@/types/custom-package'
 import {
   DEFAULT_TRACKED_PACKAGE_IDS,
   getConfiguredPackageCountForProject,
@@ -9,23 +10,25 @@ import {
 export function getConfiguredPackageCount(
   configuredVersions: Record<string, string>,
   trackedPackageIds?: string[],
+  customPackages: CustomPackageEntry[] = [],
 ): number {
-  return getConfiguredPackageCountForProject(configuredVersions, trackedPackageIds)
+  return getConfiguredPackageCountForProject(configuredVersions, trackedPackageIds, customPackages)
 }
 
 export function useConfiguredPackageCount(): number {
   const activeProject = useActiveProject()
   if (!activeProject) return 0
-  return getConfiguredPackageCount(
+  return getConfiguredPackageCountForProject(
     activeProject.configuredVersions,
     activeProject.trackedPackageIds,
+    activeProject.customPackages,
   )
 }
 
 export function useTrackedPackageCount(): number {
   const activeProject = useActiveProject()
   if (!activeProject) return DEFAULT_TRACKED_PACKAGE_IDS.length
-  return getTrackedPackages(activeProject.trackedPackageIds).length
+  return getTrackedPackages(activeProject.trackedPackageIds, activeProject.customPackages).length
 }
 
 export function useIsStackConfigured(): boolean {
@@ -34,6 +37,7 @@ export function useIsStackConfigured(): boolean {
   return isProjectStackConfigured(
     activeProject.configuredVersions,
     activeProject.trackedPackageIds,
+    activeProject.customPackages,
   )
 }
 

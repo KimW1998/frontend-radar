@@ -6,6 +6,7 @@ export interface PackageCatalogEntry {
   npmPackage: string
   githubRepo?: string
   categories: FilterCategory[]
+  isCustom?: boolean
 }
 
 export const WATCHLIST_PACKAGES: PackageCatalogEntry[] = [

@@ -1,18 +1,25 @@
-import { Alert, Box, Button, Chip, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Stack, Typography } from '@mui/material'
 import AccountTreeIcon from '@mui/icons-material/AccountTree'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import { Link } from '@tanstack/react-router'
 import type { Dependency, UpgradePlanStep } from '@/types'
 import { UpgradeCommandRow } from '@/components/UpgradeCommandRow'
 import { CopyUpgradeButton } from '@/components/CopyUpgradeButton'
+import {
+  buildFullUpgradeScript,
+  buildUpgradeChecklistMarkdown,
+} from '@/lib/upgrade-checklist'
 import { formatUpgradeCommand } from '@/lib/upgrade-command'
-import { useUiStore } from '@/stores'
+import { useActiveProject } from '@/hooks/useActiveProject'
+import { useUpgradePlanStore, useUiStore } from '@/stores'
 import { monoFont } from '@/theme'
 
 interface UpgradePlanContentProps {
   upgradePlan: UpgradePlanStep[]
   dependencies?: Dependency[]
   showBlockers?: boolean
+  showProgress?: boolean
+  showExport?: boolean
 }
 
 export function countUpgradePlanPackages(upgradePlan: UpgradePlanStep[]): number {
@@ -23,12 +30,39 @@ export function UpgradePlanContent({
   upgradePlan,
   dependencies = [],
   showBlockers = false,
+  showProgress = false,
+  showExport = false,
 }: UpgradePlanContentProps) {
   const packageManager = useUiStore((s) => s.packageManager)
+  const activeProject = useActiveProject()
+  const projectId = activeProject?.id ?? ''
+  const { togglePackageCompleted, markStepCompleted, isPackageCompleted } = useUpgradePlanStore()
   const depsWithBlockers = dependencies.filter((dep) => (dep.upgradeBlockers?.length ?? 0) > 0)
+  const fullScript = buildFullUpgradeScript(upgradePlan, packageManager)
+
+  const handleExportChecklist = async () => {
+    if (!activeProject) return
+    const markdown = buildUpgradeChecklistMarkdown(activeProject.name, upgradePlan, packageManager)
+    await navigator.clipboard.writeText(markdown)
+  }
 
   return (
     <Stack spacing={2}>
+      {showExport && upgradePlan.length > 0 && (
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={async () => navigator.clipboard.writeText(fullScript)}
+          >
+            Copy full upgrade script
+          </Button>
+          <Button size="small" variant="outlined" onClick={handleExportChecklist}>
+            Copy PR checklist
+          </Button>
+        </Stack>
+      )}
+
       {showBlockers && depsWithBlockers.length > 0 && (
         <Alert severity="warning" sx={{ alignItems: 'flex-start' }}>
           <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
@@ -47,6 +81,7 @@ export function UpgradePlanContent({
           formatUpgradeCommand(pkg.npmPackage, pkg.toVersion, packageManager),
         )
         const combinedCommand = stepCommands.join(' && ')
+        const allDone = showProgress && step.packages.every((pkg) => isPackageCompleted(projectId, pkg.id))
 
         return (
           <Box
@@ -55,8 +90,9 @@ export function UpgradePlanContent({
               p: 2,
               borderRadius: 2,
               border: '1px solid',
-              borderColor: 'divider',
+              borderColor: allDone ? 'success.main' : 'divider',
               bgcolor: 'background.paper',
+              opacity: allDone ? 0.85 : 1,
             }}
           >
             <Stack
@@ -72,26 +108,47 @@ export function UpgradePlanContent({
                   {step.title}
                 </Typography>
                 <Chip label={`Step ${step.step}`} size="small" sx={{ height: 20, fontSize: '0.6875rem' }} />
+                {allDone && <Chip label="Done" size="small" color="success" sx={{ height: 20 }} />}
               </Stack>
-              {stepCommands.length > 1 && (
-                <CopyUpgradeButton command={combinedCommand} label="Copy all for step" size="small" />
-              )}
+              <Stack direction="row" spacing={1}>
+                {showProgress && (
+                  <Button
+                    size="small"
+                    onClick={() => markStepCompleted(projectId, step.packages.map((pkg) => pkg.id))}
+                  >
+                    Mark step done
+                  </Button>
+                )}
+                {stepCommands.length > 1 && (
+                  <CopyUpgradeButton command={combinedCommand} label="Copy all for step" size="small" />
+                )}
+              </Stack>
             </Stack>
 
             <Stack spacing={1.5}>
               {step.packages.map((pkg) => {
                 const command = formatUpgradeCommand(pkg.npmPackage, pkg.toVersion, packageManager)
+                const done = showProgress && isPackageCompleted(projectId, pkg.id)
                 return (
                   <Box key={pkg.id}>
-                    <Stack
-                      direction="row"
-                      alignItems="center"
-                      spacing={1}
-                      flexWrap="wrap"
-                      useFlexGap
-                      mb={0.5}
-                    >
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap mb={0.5}>
+                      {showProgress && (
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              size="small"
+                              checked={done}
+                              onChange={() => togglePackageCompleted(projectId, pkg.id)}
+                            />
+                          }
+                          label=""
+                          sx={{ mr: 0 }}
+                        />
+                      )}
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600, textDecoration: done ? 'line-through' : 'none' }}
+                      >
                         {pkg.name}
                       </Typography>
                       <Typography variant="caption" sx={{ fontFamily: monoFont, color: 'text.secondary' }}>

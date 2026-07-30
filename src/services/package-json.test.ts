@@ -50,7 +50,7 @@ describe('parsePackageJsonInput', () => {
     const result = parsePackageJsonInput('{ not json')
 
     expect(result.matched).toEqual([])
-    expect(result.errors[0]).toMatch(/Invalid JSON/)
+    expect(result.errors[0]).toMatch(/Invalid package\.json/)
   })
 })
 

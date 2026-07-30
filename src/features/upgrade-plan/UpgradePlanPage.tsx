@@ -92,6 +92,8 @@ export function UpgradePlanPage() {
           upgradePlan={upgradePlan}
           dependencies={dependencies}
           showBlockers
+          showProgress
+          showExport
         />
       )}
     </Box>

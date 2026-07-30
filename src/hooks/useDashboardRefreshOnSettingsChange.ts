@@ -10,6 +10,9 @@ export function useDashboardRefreshOnSettingsChange() {
   const trackedPackageIds = useSettingsStore(
     (s) => s.projects.find((p) => p.id === s.activeProjectId)?.trackedPackageIds ?? [],
   )
+  const customPackages = useSettingsStore(
+    (s) => s.projects.find((p) => p.id === s.activeProjectId)?.customPackages ?? [],
+  )
   const skipInitial = useRef(true)
 
   useEffect(() => {
@@ -23,5 +26,5 @@ export function useDashboardRefreshOnSettingsChange() {
     }, 400)
 
     return () => window.clearTimeout(timer)
-  }, [activeProjectId, configuredVersions, nodeVersion, trackedPackageIds, queryClient])
+  }, [activeProjectId, configuredVersions, nodeVersion, trackedPackageIds, customPackages, queryClient])
 }

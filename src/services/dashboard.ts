@@ -26,10 +26,13 @@ import { getTrackedPackages } from '@/lib/watchlist'
 import { applyUpgradeConstraints } from '@/lib/upgrade-constraints'
 import type { UpgradePlanStep } from '@/types'
 
+import type { CustomPackageEntry } from '@/types/custom-package'
+
 interface DashboardInput {
   configuredVersions: Record<string, string>
   nodeVersion: string
   trackedPackageIds: string[]
+  customPackages: CustomPackageEntry[]
 }
 
 export interface DashboardNodeSection {
@@ -347,8 +350,9 @@ export { buildExecutiveActions }
 function isStackConfigured(
   configuredVersions: Record<string, string>,
   trackedPackageIds: string[],
+  customPackages: CustomPackageEntry[],
 ): boolean {
-  return getTrackedPackages(trackedPackageIds).some((pkg) =>
+  return getTrackedPackages(trackedPackageIds, customPackages).some((pkg) =>
     configuredVersions[pkg.npmPackage]?.trim(),
   )
 }
@@ -366,8 +370,8 @@ export async function fetchDashboardNodeSection(input: DashboardInput): Promise<
 }
 
 export async function fetchDashboardStackSection(input: DashboardInput): Promise<DashboardStackSection> {
-  const packages = getTrackedPackages(input.trackedPackageIds)
-  const isConfigured = isStackConfigured(input.configuredVersions, input.trackedPackageIds)
+  const packages = getTrackedPackages(input.trackedPackageIds, input.customPackages)
+  const isConfigured = isStackConfigured(input.configuredVersions, input.trackedPackageIds, input.customPackages)
   const dataSources: DataSourceStatus[] = []
   const dependencies: Dependency[] = []
   const securityAlerts: SecurityAlert[] = []
@@ -486,7 +490,7 @@ export async function fetchDashboardStackSection(input: DashboardInput): Promise
 }
 
 export async function fetchDashboardData(input: DashboardInput): Promise<DashboardData> {
-  const isConfigured = isStackConfigured(input.configuredVersions, input.trackedPackageIds)
+  const isConfigured = isStackConfigured(input.configuredVersions, input.trackedPackageIds, input.customPackages)
   const [nodeSection, stackSection] = await Promise.all([
     fetchDashboardNodeSection(input),
     fetchDashboardStackSection(input),

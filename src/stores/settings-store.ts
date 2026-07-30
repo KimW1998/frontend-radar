@@ -1,13 +1,20 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
+import { getTrackedPackages, resolveTrackedPackageIds } from '@/lib/watchlist'
 import {
-  applyPackageJsonImport,
-  parsePackageJsonInput,
-  type PackageJsonImportResult,
-} from '@/services/package-json'
+  createDriftReport,
+  createImportSnapshot,
+  detectVersionDrift,
+} from '@/lib/version-drift'
+import {
+  applyStackImportVersions,
+  parseStackImport,
+  type StackImportResult,
+} from '@/services/stack-import'
 import { createEmptyProject, type Project } from '@/types/project'
-import { resolveTrackedPackageIds } from '@/lib/watchlist'
+import { createCustomPackage } from '@/types/custom-package'
+import type { DriftReport } from '@/types/import-snapshot'
 
 const initialVersions = Object.fromEntries(
   WATCHLIST_PACKAGES.map((p) => [p.npmPackage, '']),
@@ -25,7 +32,17 @@ interface SettingsState {
   updateProject: (
     id: string,
     patch: Partial<
-      Pick<Project, 'name' | 'configuredVersions' | 'enginesNodeRequirement' | 'nodeVersion' | 'trackedPackageIds'>
+      Pick<
+        Project,
+        | 'name'
+        | 'configuredVersions'
+        | 'enginesNodeRequirement'
+        | 'nodeVersion'
+        | 'trackedPackageIds'
+        | 'customPackages'
+        | 'importSnapshot'
+        | 'lastDriftReport'
+      >
     >,
   ) => void
   deleteProject: (id: string) => void
@@ -35,7 +52,13 @@ interface SettingsState {
   setNodeVersion: (version: string) => void
   toggleTrackedPackage: (packageId: string) => void
   setTrackedPackages: (packageIds: string[]) => void
-  importFromPackageJson: (json: string) => PackageJsonImportResult
+  addCustomPackage: (npmPackage: string, name?: string) => void
+  removeCustomPackage: (packageId: string) => void
+  trackDiscoveredPackages: (npmPackages: string[]) => void
+  importFromStack: (input: { packageJson?: string; lockfile?: string }) => StackImportResult
+  checkStackDrift: (input: { packageJson?: string; lockfile?: string }) => DriftReport
+  importFromPackageJson: (json: string) => StackImportResult
+  clearDriftReport: () => void
 }
 
 function touchProject(project: Project, patch: Partial<Project>): Project {
@@ -62,6 +85,22 @@ function updateActiveProject(
   }
 }
 
+function runStackImport(active: Project, input: { packageJson?: string; lockfile?: string }): {
+  result: StackImportResult
+  drift: DriftReport
+} {
+  const packages = getTrackedPackagesForProject(active)
+  const result = parseStackImport(packages, input)
+  const drift = createDriftReport(
+    detectVersionDrift(active.configuredVersions, result.importedVersions, packages),
+  )
+  return { result, drift }
+}
+
+function getTrackedPackagesForProject(project: Project) {
+  return getTrackedPackages(project.trackedPackageIds, project.customPackages)
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
@@ -79,9 +118,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       updateProject: (id, patch) => {
         set((state) => ({
-          projects: state.projects.map((p) =>
-            p.id === id ? touchProject(p, patch) : p,
-          ),
+          projects: state.projects.map((p) => (p.id === id ? touchProject(p, patch) : p)),
         }))
       },
 
@@ -89,9 +126,7 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => {
           const remaining = state.projects.filter((p) => p.id !== id)
           const nextActive =
-            state.activeProjectId === id
-              ? (remaining[0]?.id ?? null)
-              : state.activeProjectId
+            state.activeProjectId === id ? (remaining[0]?.id ?? null) : state.activeProjectId
           return { projects: remaining, activeProjectId: nextActive }
         })
       },
@@ -123,66 +158,130 @@ export const useSettingsStore = create<SettingsState>()(
       toggleTrackedPackage: (packageId) => {
         set((state) =>
           updateActiveProject(state, (p) => {
-            const current = resolveTrackedPackageIds(p.trackedPackageIds)
+            const current = resolveTrackedPackageIds(p.trackedPackageIds, p.customPackages)
             const has = current.includes(packageId)
             if (has && current.length <= 1) return p
-            const next = has
-              ? current.filter((id) => id !== packageId)
-              : [...current, packageId]
+            const next = has ? current.filter((id) => id !== packageId) : [...current, packageId]
             return touchProject(p, { trackedPackageIds: next })
           }),
         )
       },
 
       setTrackedPackages: (packageIds) => {
-        const resolved = resolveTrackedPackageIds(packageIds)
-        if (resolved.length === 0) return
+        set((state) => {
+          const active = getActiveProject(state)
+          if (!active) return state
+          const resolved = resolveTrackedPackageIds(packageIds, active.customPackages)
+          if (resolved.length === 0) return state
+          return updateActiveProject(state, (p) => touchProject(p, { trackedPackageIds: resolved }))
+        })
+      },
+
+      addCustomPackage: (npmPackage, name) => {
+        const trimmed = npmPackage.trim()
+        if (!trimmed) return
         set((state) =>
-          updateActiveProject(state, (p) => touchProject(p, { trackedPackageIds: resolved })),
+          updateActiveProject(state, (p) => {
+            if (p.customPackages.some((pkg) => pkg.npmPackage === trimmed)) return p
+            const custom = createCustomPackage(trimmed, name)
+            const trackedPackageIds = resolveTrackedPackageIds(
+              [...p.trackedPackageIds, custom.id],
+              [...p.customPackages, custom],
+            )
+            return touchProject(p, {
+              customPackages: [...p.customPackages, custom],
+              trackedPackageIds,
+              configuredVersions: { ...p.configuredVersions, [trimmed]: p.configuredVersions[trimmed] ?? '' },
+            })
+          }),
         )
       },
 
-      importFromPackageJson: (json) => {
-        const state = get()
-        const active = getActiveProject(state)
+      removeCustomPackage: (packageId) => {
+        set((state) =>
+          updateActiveProject(state, (p) => {
+            const custom = p.customPackages.find((pkg) => pkg.id === packageId)
+            if (!custom) return p
+            const nextCustom = p.customPackages.filter((pkg) => pkg.id !== packageId)
+            const nextVersions = { ...p.configuredVersions }
+            delete nextVersions[custom.npmPackage]
+            return touchProject(p, {
+              customPackages: nextCustom,
+              trackedPackageIds: resolveTrackedPackageIds(
+                p.trackedPackageIds.filter((id) => id !== packageId),
+                nextCustom,
+              ),
+              configuredVersions: nextVersions,
+            })
+          }),
+        )
+      },
+
+      trackDiscoveredPackages: (npmPackages) => {
+        for (const npmPackage of npmPackages) {
+          get().addCustomPackage(npmPackage)
+        }
+      },
+
+      importFromStack: (input) => {
+        const active = getActiveProject(get())
         if (!active) {
           return {
             matched: [],
-            missing: WATCHLIST_PACKAGES.map((p) => ({ name: p.name, npmPackage: p.npmPackage })),
+            missing: [],
+            discovered: [],
+            importedVersions: {},
             nodeVersion: null,
             enginesNode: null,
+            lockfileFormat: null,
+            source: 'package-json' as const,
             errors: ['Create a project first'],
           }
         }
 
-        const result = parsePackageJsonInput(json)
-        const configuredVersions = applyPackageJsonImport(active.configuredVersions, result)
+        const { result, drift } = runStackImport(active, input)
+        const configuredVersions = applyStackImportVersions(active.configuredVersions, result)
+        const nodeVersion = active.nodeVersion.trim() ? active.nodeVersion : (result.nodeVersion ?? active.nodeVersion)
 
-        set((s) =>
-          updateActiveProject(s, (p) =>
+        set((state) =>
+          updateActiveProject(state, (p) =>
             touchProject(p, {
               configuredVersions,
               enginesNodeRequirement: result.enginesNode ?? p.enginesNodeRequirement,
-              nodeVersion: p.nodeVersion.trim() ? p.nodeVersion : (result.nodeVersion ?? p.nodeVersion),
+              nodeVersion,
+              importSnapshot: createImportSnapshot(configuredVersions, nodeVersion, result.source),
+              lastDriftReport: drift,
             }),
           ),
         )
 
         return result
       },
+
+      checkStackDrift: (input) => {
+        const active = getActiveProject(get())
+        if (!active) return createDriftReport([])
+
+        const { drift } = runStackImport(active, input)
+        set((state) => updateActiveProject(state, (p) => touchProject(p, { lastDriftReport: drift })))
+        return drift
+      },
+
+      importFromPackageJson: (json) => get().importFromStack({ packageJson: json }),
+
+      clearDriftReport: () => {
+        set((state) => updateActiveProject(state, (p) => touchProject(p, { lastDriftReport: undefined })))
+      },
     }),
     {
       name: 'frontend-radar-settings',
-      version: 3,
+      version: 4,
       migrate: (persisted, version) => {
         if (version === 0) {
           const old = persisted as LegacySettingsState
           const project = createEmptyProject('My Project', old.configuredVersions ?? initialVersions)
           if (old.nodeVersion) project.nodeVersion = old.nodeVersion
-          return {
-            projects: [project],
-            activeProjectId: project.id,
-          }
+          return { projects: [project], activeProjectId: project.id }
         }
         if (version === 1) {
           const state = persisted as SettingsState
@@ -201,6 +300,18 @@ export const useSettingsStore = create<SettingsState>()(
             projects: state.projects.map((p) => ({
               ...p,
               trackedPackageIds: resolveTrackedPackageIds((p as Project).trackedPackageIds),
+            })),
+          }
+        }
+        if (version === 3) {
+          const state = persisted as SettingsState
+          return {
+            ...state,
+            projects: state.projects.map((p) => ({
+              ...p,
+              customPackages: (p as Project).customPackages ?? [],
+              importSnapshot: (p as Project).importSnapshot,
+              lastDriftReport: (p as Project).lastDriftReport,
             })),
           }
         }
