@@ -336,7 +336,10 @@ export function OnboardingPage() {
                   importResult={importResult}
                   onTrackLockfileExtras={() =>
                     trackDiscoveredPackages(
-                      importResult.discoveredFromLockfileOnly.slice(0, 24).map((item) => item.npmPackage),
+                      importResult.discoveredFromLockfileOnly.slice(0, 24).map((item) => ({
+                        npmPackage: item.npmPackage,
+                        version: item.version,
+                      })),
                     )
                   }
                 />

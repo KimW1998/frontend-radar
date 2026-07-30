@@ -58,7 +58,9 @@ interface SettingsState {
   setTrackedPackages: (packageIds: string[]) => void
   addCustomPackage: (npmPackage: string, name?: string) => void
   removeCustomPackage: (packageId: string) => void
-  trackDiscoveredPackages: (npmPackages: string[]) => void
+  trackDiscoveredPackages: (
+    packages: Array<{ npmPackage: string; version: string }>,
+  ) => number
   importFromStack: (input: { packageJson?: string; lockfile?: string }) => StackImportResult
   checkStackDrift: (input: { packageJson?: string; lockfile?: string }) => DriftReport
   importFromPackageJson: (json: string) => StackImportResult
@@ -262,10 +264,50 @@ export const useSettingsStore = create<SettingsState>()(
         )
       },
 
-      trackDiscoveredPackages: (npmPackages) => {
-        for (const npmPackage of npmPackages) {
-          get().addCustomPackage(npmPackage)
-        }
+      trackDiscoveredPackages: (packages) => {
+        const active = getActiveProject(get())
+        if (!active || packages.length === 0) return 0
+
+        let trackedCount = 0
+
+        set((state) =>
+          updateActiveProject(state, (p) => {
+            let customPackages = [...p.customPackages]
+            let trackedPackageIds = [...p.trackedPackageIds]
+            const configuredVersions = { ...p.configuredVersions }
+
+            for (const item of packages) {
+              const trimmed = item.npmPackage.trim()
+              const version = item.version.trim()
+              if (!trimmed || !version) continue
+
+              configuredVersions[trimmed] = version
+              trackedCount += 1
+
+              const catalogEntry = WATCHLIST_PACKAGES.find((pkg) => pkg.npmPackage === trimmed)
+              if (catalogEntry) {
+                if (!trackedPackageIds.includes(catalogEntry.id)) {
+                  trackedPackageIds.push(catalogEntry.id)
+                }
+                continue
+              }
+
+              if (customPackages.some((pkg) => pkg.npmPackage === trimmed)) continue
+
+              const custom = createCustomPackage(trimmed)
+              customPackages.push(custom)
+              trackedPackageIds.push(custom.id)
+            }
+
+            return touchProject(p, {
+              customPackages,
+              trackedPackageIds: resolveTrackedPackageIds(trackedPackageIds, customPackages),
+              configuredVersions,
+            })
+          }),
+        )
+
+        return trackedCount
       },
 
       importFromStack: (input) => {

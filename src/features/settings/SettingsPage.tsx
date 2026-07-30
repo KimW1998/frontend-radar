@@ -359,10 +359,14 @@ export function SettingsPage() {
                     <DiscoveredPackagesPrompt
                       importResult={importResult}
                       onTrackLockfileExtras={() => {
-                        trackDiscoveredPackages(
-                          importResult.discoveredFromLockfileOnly.slice(0, 24).map((item) => item.npmPackage),
+                        const tracked = trackDiscoveredPackages(
+                          importResult.discoveredFromLockfileOnly.slice(0, 24).map((item) => ({
+                            npmPackage: item.npmPackage,
+                            version: item.version,
+                          })),
                         )
                         queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+                        return tracked
                       }}
                     />
                   ) : null}
