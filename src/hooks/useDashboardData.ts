@@ -17,8 +17,11 @@ export function useDashboardData(enabled = true) {
   const queryClient = useQueryClient()
   const activeProjectId = useSettingsStore((s) => s.activeProjectId)
   const { configuredVersions, nodeVersion } = useActiveProjectVersions()
-  const input = { configuredVersions, nodeVersion }
-  const queryKeyBase = ['dashboard', activeProjectId, configuredVersions, nodeVersion] as const
+  const trackedPackageIds = useSettingsStore(
+    (s) => s.projects.find((p) => p.id === s.activeProjectId)?.trackedPackageIds ?? [],
+  )
+  const input = { configuredVersions, nodeVersion, trackedPackageIds }
+  const queryKeyBase = ['dashboard', activeProjectId, configuredVersions, nodeVersion, trackedPackageIds] as const
   const isQueryEnabled = enabled && Boolean(activeProjectId)
 
   const [nodeQuery, stackQuery] = useQueries({
@@ -40,7 +43,7 @@ export function useDashboardData(enabled = true) {
     ],
   })
 
-  const isConfigured = getConfiguredPackageCount(configuredVersions) > 0
+  const isConfigured = getConfiguredPackageCount(configuredVersions, trackedPackageIds) > 0
 
   const healthScore = useMemo(() => {
     if (!isConfigured || !stackQuery.data || !nodeQuery.data) {

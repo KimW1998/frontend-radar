@@ -1,7 +1,11 @@
+import { DEFAULT_TRACKED_PACKAGE_IDS } from '@/lib/watchlist'
+
 export interface Project {
   id: string
   name: string
   configuredVersions: Record<string, string>
+  /** Package catalog ids to monitor for this project */
+  trackedPackageIds: string[]
   /** Raw engines.node / volta.node from package.json (project requirement) */
   enginesNodeRequirement: string
   /** Node version the developer runs locally or in CI */
@@ -16,6 +20,7 @@ export function createEmptyProject(name: string, configuredVersions: Record<stri
     id: crypto.randomUUID(),
     name,
     configuredVersions: { ...configuredVersions },
+    trackedPackageIds: [...DEFAULT_TRACKED_PACKAGE_IDS],
     enginesNodeRequirement: '',
     nodeVersion: '',
     createdAt: now,

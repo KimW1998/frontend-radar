@@ -23,12 +23,14 @@ import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useDashboardRefreshOnSettingsChange } from '@/hooks/useDashboardRefreshOnSettingsChange'
 import { useActiveProject } from '@/hooks/useActiveProject'
-import { getConfiguredPackageCount } from '@/lib/section-empty'
+import { ProjectWatchlistEditor } from '@/components/ProjectWatchlistEditor'
+import { NodeVersionFields } from '@/components/NodeVersionFields'
+import { getConfiguredPackageCount, useTrackedPackageCount } from '@/lib/section-empty'
+import { getConfiguredPackageCountForProject } from '@/lib/watchlist'
 import { PACKAGE_MANAGER_LABELS, type PackageManager } from '@/lib/upgrade-command'
 import { useSettingsStore, useUiStore } from '@/stores'
 import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
 import type { PackageJsonImportResult } from '@/services/package-json'
-import { NodeVersionFields } from '@/components/NodeVersionFields'
 import { monoFont } from '@/theme'
 
 export function SettingsPage() {
@@ -46,6 +48,7 @@ export function SettingsPage() {
     importFromPackageJson,
   } = useSettingsStore()
   const { packageManager, setPackageManager } = useUiStore()
+  const trackedCount = useTrackedPackageCount()
 
   const [packageJsonInput, setPackageJsonInput] = useState('')
   const [importResult, setImportResult] = useState<PackageJsonImportResult | null>(null)
@@ -63,7 +66,10 @@ export function SettingsPage() {
     }
   }
 
-  const configuredCount = getConfiguredPackageCount(configuredVersions)
+  const configuredCount = getConfiguredPackageCount(
+    configuredVersions,
+    activeProject?.trackedPackageIds,
+  )
 
   if (projects.length === 0) {
     return (
@@ -122,7 +128,11 @@ export function SettingsPage() {
           </Typography>
           <Stack spacing={1}>
             {projects.map((project) => {
-              const count = getConfiguredPackageCount(project.configuredVersions)
+              const count = getConfiguredPackageCountForProject(
+                project.configuredVersions,
+                project.trackedPackageIds,
+              )
+              const tracked = project.trackedPackageIds?.length ?? WATCHLIST_PACKAGES.length
               const isActive = project.id === activeProject?.id
               return (
                 <Stack
@@ -143,7 +153,7 @@ export function SettingsPage() {
                       {project.name}
                     </Typography>
                     <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                      {count} packages
+                      {count}/{tracked} tracked packages
                       {project.nodeVersion ? ` · Node ${project.nodeVersion}` : ' · Node not set'}
                     </Typography>
                   </Box>
@@ -178,6 +188,18 @@ export function SettingsPage() {
         <>
           <Card sx={{ mb: 3 }}>
             <CardContent>
+              <Typography variant="h3" sx={{ mb: 1 }}>
+                Tracked packages — {activeProject.name}
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+                Choose which packages this project monitors on the dashboard.
+              </Typography>
+              <ProjectWatchlistEditor trackedPackageIds={activeProject.trackedPackageIds} />
+            </CardContent>
+          </Card>
+
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
               <Stack direction="row" alignItems="center" spacing={1} mb={1}>
                 <ContentPasteIcon sx={{ fontSize: 20, color: 'primary.main' }} />
                 <Typography variant="h3">Import package.json — {activeProject.name}</Typography>
@@ -205,7 +227,7 @@ export function SettingsPage() {
                   Import versions
                 </Button>
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  {configuredCount}/{WATCHLIST_PACKAGES.length} packages configured
+                  {configuredCount}/{trackedCount} tracked packages configured
                 </Typography>
               </Stack>
 
@@ -300,7 +322,9 @@ export function SettingsPage() {
 
               <Collapse in={showManual}>
                 <Stack spacing={1.5}>
-                  {WATCHLIST_PACKAGES.map((pkg) => (
+                  {WATCHLIST_PACKAGES.filter((pkg) =>
+                    activeProject.trackedPackageIds.includes(pkg.id),
+                  ).map((pkg) => (
                     <Stack key={pkg.npmPackage} direction="row" alignItems="center" spacing={2}>
                       <Box sx={{ width: 160, flexShrink: 0 }}>
                         <Typography variant="body2">{pkg.name}</Typography>

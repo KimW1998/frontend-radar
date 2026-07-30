@@ -1,35 +1,34 @@
-import { Box, Chip, Stack, Typography, useTheme } from '@mui/material'
-import SecurityIcon from '@mui/icons-material/Security'
-import UpdateIcon from '@mui/icons-material/Update'
-import WarningAmberIcon from '@mui/icons-material/WarningAmber'
-import ScheduleIcon from '@mui/icons-material/Schedule'
-import LightbulbIcon from '@mui/icons-material/Lightbulb'
-import type { ExecutiveAction } from '@/types'
+import { Box, Stack, Typography, useTheme } from '@mui/material'
+import type { Dependency, ExecutiveAction, NodeStatus, SecurityAlert } from '@/types'
 import { URGENCY_LABELS } from '@/types'
 import { DASHBOARD_SECTIONS } from '@/data/dashboard-sections'
 import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
 import { DetailCard } from '@/components/DetailCard'
-import { buildExecutiveDetail } from '@/lib/detail-builders'
+import {
+  DependencyPackageCardContent,
+  dependencyCardSx,
+} from '@/components/DependencyPackageCardContent'
+import { SecurityAlertCardContent } from '@/components/SecurityAlertCardContent'
+import { buildDependencyDetail, buildExecutiveDetail, buildNodeDetail, buildSecurityDetail } from '@/lib/detail-builders'
+import { resolveExecutiveActionContext } from '@/lib/executive-action-context'
 import { resolveSectionEmpty, useIsStackConfigured } from '@/lib/section-empty'
 import { useFilterStore, matchesFilter } from '@/stores'
-import { cardSx } from '@/theme'
-
-const TYPE_ICONS: Record<ExecutiveAction['type'], React.ReactNode> = {
-  security: <SecurityIcon sx={{ fontSize: 16, color: '#EF4444' }} />,
-  dependency: <UpdateIcon sx={{ fontSize: 16, color: '#3B82F6' }} />,
-  breaking: <WarningAmberIcon sx={{ fontSize: 16, color: '#F97316' }} />,
-  deprecation: <ScheduleIcon sx={{ fontSize: 16, color: '#EAB308' }} />,
-  recommendation: <LightbulbIcon sx={{ fontSize: 16, color: '#8B5CF6' }} />,
-}
-
-const IMPACT_COLORS = { low: '#22C55E', medium: '#EAB308', high: '#EF4444' }
+import { cardSx, monoFont } from '@/theme'
 
 interface ExecutiveSummaryProps {
   actions: ExecutiveAction[]
+  dependencies: Dependency[]
+  securityAlerts: SecurityAlert[]
+  nodeStatus: NodeStatus | null
 }
 
-export function ExecutiveSummary({ actions }: ExecutiveSummaryProps) {
+export function ExecutiveSummary({
+  actions,
+  dependencies,
+  securityAlerts,
+  nodeStatus,
+}: ExecutiveSummaryProps) {
   const theme = useTheme()
   const isConfigured = useIsStackConfigured()
   const { activeFilters, searchQuery, clearFilters } = useFilterStore()
@@ -53,11 +52,7 @@ export function ExecutiveSummary({ actions }: ExecutiveSummaryProps) {
         {emptyVariant && (
           <EmptySectionState
             variant={emptyVariant}
-            title={
-              emptyVariant === 'all-clear'
-                ? 'Nothing urgent right now'
-                : undefined
-            }
+            title={emptyVariant === 'all-clear' ? 'Nothing urgent right now' : undefined}
             description={
               emptyVariant === 'all-clear'
                 ? 'Your stack looks good — no critical actions at the moment.'
@@ -66,39 +61,143 @@ export function ExecutiveSummary({ actions }: ExecutiveSummaryProps) {
             onClearFilters={clearFilters}
           />
         )}
-        {filtered.map((action) => (
-          <DetailCard key={action.id} detail={buildExecutiveDetail(action)} sx={{ ...cardSx(theme), pr: 5 }}>
-            <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-              {TYPE_ICONS[action.type]}
-              <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', flex: 1 }}>
+        {filtered.map((action) => {
+          const context = resolveExecutiveActionContext(
+            action,
+            dependencies,
+            securityAlerts,
+            nodeStatus,
+          )
+
+          if (context?.kind === 'dependency') {
+            return (
+              <DetailCard
+                key={action.id}
+                detail={buildDependencyDetail(context.dep)}
+                sx={dependencyCardSx(context.dep)}
+              >
+                <DependencyPackageCardContent dep={context.dep} urgency={action.urgency} />
+              </DetailCard>
+            )
+          }
+
+          if (context?.kind === 'security') {
+            return (
+              <DetailCard
+                key={action.id}
+                detail={buildSecurityDetail(context.alert)}
+                sx={{ ...cardSx(theme), pr: 5 }}
+              >
+                <SecurityAlertCardContent
+                  alert={context.alert}
+                  currentVersion={context.currentVersion}
+                  urgency={action.urgency}
+                />
+              </DetailCard>
+            )
+          }
+
+          if (context?.kind === 'node') {
+            return (
+              <DetailCard
+                key={action.id}
+                detail={buildNodeDetail(context.nodeStatus)}
+                sx={{ ...cardSx(theme), pr: 5 }}
+              >
+                <NodeAttentionCardContent nodeStatus={context.nodeStatus} urgency={action.urgency} />
+              </DetailCard>
+            )
+          }
+
+          return (
+            <DetailCard key={action.id} detail={buildExecutiveDetail(action)} sx={{ ...cardSx(theme), pr: 5 }}>
+              <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', mb: 1 }}>
                 {action.title}
               </Typography>
-              <Chip
-                label={URGENCY_LABELS[action.urgency]}
-                size="small"
-                sx={{ height: 20, fontSize: '0.6875rem' }}
-              />
-            </Stack>
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 1.5, pl: 3 }}>
-              <Box>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>Why</Typography>
-                <Typography variant="body2">{action.why}</Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 1.5 }}>
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Why</Typography>
+                  <Typography variant="body2">{action.why}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Action</Typography>
+                  <Typography variant="body2" sx={{ color: 'primary.main' }}>{action.action}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Impact</Typography>
+                  <Typography variant="body2">{action.impact.charAt(0).toUpperCase() + action.impact.slice(1)} effort</Typography>
+                </Box>
               </Box>
-              <Box>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>Action</Typography>
-                <Typography variant="body2" sx={{ color: 'primary.main' }}>{action.action}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>Impact</Typography>
-                <Typography variant="body2" sx={{ color: IMPACT_COLORS[action.impact] }}>
-                  {action.impact.charAt(0).toUpperCase() + action.impact.slice(1)} effort
-                </Typography>
-              </Box>
-            </Box>
-          </DetailCard>
-        ))}
+            </DetailCard>
+          )
+        })}
       </Stack>
     </SectionCard>
+  )
+}
+
+function NodeAttentionCardContent({
+  nodeStatus,
+  urgency,
+}: {
+  nodeStatus: NodeStatus
+  urgency: ExecutiveAction['urgency']
+}) {
+  return (
+    <>
+      <Typography variant="body1" sx={{ fontWeight: 600, mb: 1.5 }}>
+        Node.js {nodeStatus.status === 'end-of-life' ? 'end of life' : 'upgrade recommended'}
+      </Typography>
+
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' },
+          gap: 1.5,
+          mb: 1.5,
+        }}
+      >
+        <VersionCell label="Current" version={nodeStatus.currentVersion} />
+        <VersionCell
+          label="Latest LTS"
+          version={`${nodeStatus.latestLts.version}${nodeStatus.latestLts.codename ? ` (${nodeStatus.latestLts.codename})` : ''}`}
+          highlight
+        />
+        <VersionCell label="Migration effort" version={nodeStatus.migrationEffort} />
+        <VersionCell label="Urgency" version={URGENCY_LABELS[urgency]} />
+      </Box>
+
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+        {nodeStatus.whyUpgrade}
+      </Typography>
+    </>
+  )
+}
+
+function VersionCell({
+  label,
+  version,
+  highlight,
+}: {
+  label: string
+  version: string
+  highlight?: boolean
+}) {
+  return (
+    <Box>
+      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+        {label}
+      </Typography>
+      <Typography
+        variant="body2"
+        sx={{
+          fontFamily: label === 'Migration effort' || label === 'Urgency' ? undefined : monoFont,
+          color: highlight ? 'primary.main' : 'text.primary',
+          textTransform: label === 'Migration effort' ? 'capitalize' : undefined,
+        }}
+      >
+        {version}
+      </Typography>
+    </Box>
   )
 }

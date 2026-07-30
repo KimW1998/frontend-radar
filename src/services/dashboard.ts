@@ -22,9 +22,12 @@ import { isBehind, isMajorBump, maxVersion } from '@/services/semver'
 import { calculateHealthScore } from '@/services/health'
 import { fetchDataHealth } from '@/services/api'
 
+import { getTrackedPackages } from '@/lib/watchlist'
+
 interface DashboardInput {
   configuredVersions: Record<string, string>
   nodeVersion: string
+  trackedPackageIds: string[]
 }
 
 export interface DashboardNodeSection {
@@ -337,8 +340,13 @@ function buildExecutiveActions(
 
 export { buildExecutiveActions }
 
-function isStackConfigured(configuredVersions: Record<string, string>): boolean {
-  return Object.values(configuredVersions).some((v) => v?.trim())
+function isStackConfigured(
+  configuredVersions: Record<string, string>,
+  trackedPackageIds: string[],
+): boolean {
+  return getTrackedPackages(trackedPackageIds).some((pkg) =>
+    configuredVersions[pkg.npmPackage]?.trim(),
+  )
 }
 
 export async function fetchDashboardNodeSection(input: DashboardInput): Promise<DashboardNodeSection> {
@@ -354,7 +362,8 @@ export async function fetchDashboardNodeSection(input: DashboardInput): Promise<
 }
 
 export async function fetchDashboardStackSection(input: DashboardInput): Promise<DashboardStackSection> {
-  const isConfigured = isStackConfigured(input.configuredVersions)
+  const packages = getTrackedPackages(input.trackedPackageIds)
+  const isConfigured = isStackConfigured(input.configuredVersions, input.trackedPackageIds)
   const dataSources: DataSourceStatus[] = []
   const dependencies: Dependency[] = []
   const securityAlerts: SecurityAlert[] = []
@@ -383,7 +392,7 @@ export async function fetchDashboardStackSection(input: DashboardInput): Promise
   }
 
   const githubRepos = [
-    ...new Set(WATCHLIST_PACKAGES.map((pkg) => pkg.githubRepo).filter(Boolean) as string[]),
+    ...new Set(packages.map((pkg) => pkg.githubRepo).filter(Boolean) as string[]),
   ]
 
   const [githubBatch, dataHealth] = await Promise.all([
@@ -392,7 +401,7 @@ export async function fetchDashboardStackSection(input: DashboardInput): Promise
   ])
 
   const depResults = await Promise.all(
-    WATCHLIST_PACKAGES.map(async (pkg) => {
+    packages.map(async (pkg) => {
       const result = await buildDependency(pkg, input.configuredVersions, githubBatch)
       return { pkg, result }
     }),
@@ -414,7 +423,7 @@ export async function fetchDashboardStackSection(input: DashboardInput): Promise
     name: 'NPM Registry',
     endpoint: 'https://registry.npmjs.org/{package}/latest',
     status: dependencies.length > 0 ? 'ok' : 'error',
-    message: `${dependencies.length}/${WATCHLIST_PACKAGES.length} packages resolved`,
+    message: `${dependencies.length}/${packages.length} packages resolved`,
     itemCount: dependencies.length,
   })
 
@@ -465,7 +474,7 @@ export async function fetchDashboardStackSection(input: DashboardInput): Promise
 }
 
 export async function fetchDashboardData(input: DashboardInput): Promise<DashboardData> {
-  const isConfigured = isStackConfigured(input.configuredVersions)
+  const isConfigured = isStackConfigured(input.configuredVersions, input.trackedPackageIds)
   const [nodeSection, stackSection] = await Promise.all([
     fetchDashboardNodeSection(input),
     fetchDashboardStackSection(input),

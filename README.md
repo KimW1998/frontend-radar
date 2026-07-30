@@ -10,6 +10,7 @@ Developer intelligence dashboard for senior frontend engineers. Monitors your da
 - **Onboarding wizard** — Guided setup: name project → paste `package.json` → set Node version
 - **Executive Summary** — Critical alerts, pending updates, breaking changes, and recommended actions
 - **Dependency Watchlist** — Version tracking with risk levels, CVE counts, and copy-to-clipboard upgrade commands
+- **Custom watchlist per project** — Choose which of the 16 packages to monitor (Settings → Tracked packages)
 - **Node.js Upgrade Center** — LTS status, support dates, migration guidance (per project, per developer)
 - **Security Center** — CVEs and advisories from OSV with one-click fix commands
 - **Breaking Changes Feed** — Migration guidance from GitHub release notes
@@ -54,10 +55,18 @@ cp .env.example .env
 
 Restart the dev server after adding env vars.
 
+### Tests
+
+```bash
+npm test
+```
+
+Unit tests cover semver parsing, package.json import, health score calculation, watchlist helpers, and empty-state logic.
+
 ## Projects & Settings
 
 - **Sidebar project switcher** — Switch between tracked projects or add a new one
-- **Settings** — Manage projects, re-import `package.json`, edit package versions manually
+- **Settings** — Manage projects, pick tracked packages, re-import `package.json`, edit package versions manually
 - **Package manager preference** — Choose npm, pnpm, or yarn for upgrade command copy buttons
 
 The dashboard stays empty until at least one package version is configured — we don't show misleading "latest only" data without knowing your installed versions.

@@ -21,7 +21,7 @@ import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
-import { getConfiguredPackageCount } from '@/lib/section-empty'
+import { getConfiguredPackageCountForProject } from '@/lib/watchlist'
 import { useActiveProject } from '@/hooks/useActiveProject'
 import type { PackageJsonImportResult } from '@/services/package-json'
 import { useSettingsStore } from '@/stores'
@@ -55,7 +55,10 @@ export function OnboardingPage() {
     if (params.get('new') === 'true' || params.get('new') === '1') return
 
     if (activeProject && !draftProjectId) {
-      const count = getConfiguredPackageCount(activeProject.configuredVersions)
+      const count = getConfiguredPackageCountForProject(
+        activeProject.configuredVersions,
+        activeProject.trackedPackageIds,
+      )
       if (count === 0) {
         setDraftProjectId(activeProject.id)
         setProjectName(activeProject.name)
@@ -66,8 +69,13 @@ export function OnboardingPage() {
   }, [activeProject, draftProjectId])
 
   const configuredCount = workingProject
-    ? getConfiguredPackageCount(workingProject.configuredVersions)
+    ? getConfiguredPackageCountForProject(
+        workingProject.configuredVersions,
+        workingProject.trackedPackageIds,
+      )
     : 0
+
+  const trackedCount = workingProject?.trackedPackageIds.length ?? WATCHLIST_PACKAGES.length
 
   const handleCreateProject = () => {
     const name = projectName.trim() || 'My project'
@@ -185,7 +193,7 @@ export function OnboardingPage() {
                 Import versions
               </Button>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {configuredCount}/{WATCHLIST_PACKAGES.length} packages matched
+                {configuredCount}/{trackedCount} packages matched
               </Typography>
             </Stack>
 
@@ -270,7 +278,7 @@ export function OnboardingPage() {
               <SummaryRow label="Project" value={workingProject.name} />
               <SummaryRow
                 label="Packages configured"
-                value={`${configuredCount} of ${WATCHLIST_PACKAGES.length}`}
+                value={`${configuredCount} of ${trackedCount}`}
               />
               <SummaryRow
                 label="Node you run"

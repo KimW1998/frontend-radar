@@ -7,6 +7,7 @@ import {
   type PackageJsonImportResult,
 } from '@/services/package-json'
 import { createEmptyProject, type Project } from '@/types/project'
+import { resolveTrackedPackageIds } from '@/lib/watchlist'
 
 const initialVersions = Object.fromEntries(
   WATCHLIST_PACKAGES.map((p) => [p.npmPackage, '']),
@@ -23,13 +24,17 @@ interface SettingsState {
   createProject: (name: string) => string
   updateProject: (
     id: string,
-    patch: Partial<Pick<Project, 'name' | 'configuredVersions' | 'enginesNodeRequirement' | 'nodeVersion'>>,
+    patch: Partial<
+      Pick<Project, 'name' | 'configuredVersions' | 'enginesNodeRequirement' | 'nodeVersion' | 'trackedPackageIds'>
+    >,
   ) => void
   deleteProject: (id: string) => void
   setActiveProject: (id: string) => void
   renameActiveProject: (name: string) => void
   setConfiguredVersion: (pkg: string, version: string) => void
   setNodeVersion: (version: string) => void
+  toggleTrackedPackage: (packageId: string) => void
+  setTrackedPackages: (packageIds: string[]) => void
   importFromPackageJson: (json: string) => PackageJsonImportResult
 }
 
@@ -115,6 +120,28 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => updateActiveProject(state, (p) => touchProject(p, { nodeVersion: version })))
       },
 
+      toggleTrackedPackage: (packageId) => {
+        set((state) =>
+          updateActiveProject(state, (p) => {
+            const current = resolveTrackedPackageIds(p.trackedPackageIds)
+            const has = current.includes(packageId)
+            if (has && current.length <= 1) return p
+            const next = has
+              ? current.filter((id) => id !== packageId)
+              : [...current, packageId]
+            return touchProject(p, { trackedPackageIds: next })
+          }),
+        )
+      },
+
+      setTrackedPackages: (packageIds) => {
+        const resolved = resolveTrackedPackageIds(packageIds)
+        if (resolved.length === 0) return
+        set((state) =>
+          updateActiveProject(state, (p) => touchProject(p, { trackedPackageIds: resolved })),
+        )
+      },
+
       importFromPackageJson: (json) => {
         const state = get()
         const active = getActiveProject(state)
@@ -146,7 +173,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'frontend-radar-settings',
-      version: 2,
+      version: 3,
       migrate: (persisted, version) => {
         if (version === 0) {
           const old = persisted as LegacySettingsState
@@ -163,7 +190,17 @@ export const useSettingsStore = create<SettingsState>()(
             ...state,
             projects: state.projects.map((p) => ({
               ...p,
-              enginesNodeRequirement: p.enginesNodeRequirement ?? '',
+              enginesNodeRequirement: (p as Project).enginesNodeRequirement ?? '',
+            })),
+          }
+        }
+        if (version === 2) {
+          const state = persisted as SettingsState
+          return {
+            ...state,
+            projects: state.projects.map((p) => ({
+              ...p,
+              trackedPackageIds: resolveTrackedPackageIds((p as Project).trackedPackageIds),
             })),
           }
         }

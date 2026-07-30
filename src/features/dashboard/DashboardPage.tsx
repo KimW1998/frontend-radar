@@ -99,7 +99,12 @@ export function DashboardPage() {
       )}
 
       {stackReady ? (
-        <ExecutiveSummary actions={executiveActions} />
+        <ExecutiveSummary
+          actions={executiveActions}
+          dependencies={stackQuery.data!.dependencies}
+          securityAlerts={stackQuery.data!.securityAlerts}
+          nodeStatus={nodeReady ? nodeQuery.data!.nodeStatus : null}
+        />
       ) : (
         <SectionSkeleton
           title={DASHBOARD_SECTIONS.executiveSummary.title}

@@ -7,6 +7,9 @@ export function useDashboardRefreshOnSettingsChange() {
   const queryClient = useQueryClient()
   const activeProjectId = useSettingsStore((s) => s.activeProjectId)
   const { configuredVersions, nodeVersion } = useActiveProjectVersions()
+  const trackedPackageIds = useSettingsStore(
+    (s) => s.projects.find((p) => p.id === s.activeProjectId)?.trackedPackageIds ?? [],
+  )
   const skipInitial = useRef(true)
 
   useEffect(() => {
@@ -20,5 +23,5 @@ export function useDashboardRefreshOnSettingsChange() {
     }, 400)
 
     return () => window.clearTimeout(timer)
-  }, [activeProjectId, configuredVersions, nodeVersion, queryClient])
+  }, [activeProjectId, configuredVersions, nodeVersion, trackedPackageIds, queryClient])
 }
