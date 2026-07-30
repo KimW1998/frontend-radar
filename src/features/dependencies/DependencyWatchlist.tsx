@@ -4,11 +4,13 @@ import type { Dependency } from '@/types'
 import { RISK_COLORS } from '@/types'
 import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
+import { UpgradeCommandRow } from '@/components/UpgradeCommandRow'
 import { RiskBadge } from '@/components/Badges'
 import { DetailCard } from '@/components/DetailCard'
 import { buildDependencyDetail } from '@/lib/detail-builders'
+import { formatUpgradeCommand, needsDependencyUpgrade } from '@/lib/upgrade-command'
 import { resolveSectionEmpty, useIsStackConfigured } from '@/lib/section-empty'
-import { useFilterStore, matchesFilter } from '@/stores'
+import { useFilterStore, useUiStore, matchesFilter } from '@/stores'
 import { monoFont } from '@/theme'
 
 interface DependencyWatchlistProps {
@@ -17,6 +19,7 @@ interface DependencyWatchlistProps {
 
 export function DependencyWatchlist({ dependencies }: DependencyWatchlistProps) {
   const isConfigured = useIsStackConfigured()
+  const packageManager = useUiStore((s) => s.packageManager)
   const { activeFilters, searchQuery, clearFilters } = useFilterStore()
 
   const filtered = dependencies.filter((d) =>
@@ -44,7 +47,14 @@ export function DependencyWatchlist({ dependencies }: DependencyWatchlistProps) 
         {emptyVariant && (
           <EmptySectionState variant={emptyVariant} onClearFilters={clearFilters} />
         )}
-        {filtered.map((dep) => (
+        {filtered.map((dep) => {
+          const showUpgrade = dep.npmPackage &&
+            needsDependencyUpgrade(dep.currentVersion, dep.recommendedVersion, dep.riskLevel)
+          const upgradeCommand = showUpgrade && dep.npmPackage
+            ? formatUpgradeCommand(dep.npmPackage, dep.recommendedVersion, packageManager)
+            : null
+
+          return (
           <DetailCard
             key={dep.id}
             detail={buildDependencyDetail(dep)}
@@ -117,8 +127,11 @@ export function DependencyWatchlist({ dependencies }: DependencyWatchlistProps) 
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               {dep.releaseNotesSummary}
             </Typography>
+
+            {upgradeCommand && <UpgradeCommandRow command={upgradeCommand} />}
           </DetailCard>
-        ))}
+          )
+        })}
       </Stack>
     </SectionCard>
   )

@@ -3,11 +3,13 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import type { SecurityAlert } from '@/types'
 import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
+import { UpgradeCommandRow } from '@/components/UpgradeCommandRow'
 import { SeverityBadge } from '@/components/Badges'
 import { DetailCard } from '@/components/DetailCard'
 import { buildSecurityDetail } from '@/lib/detail-builders'
+import { formatUpgradeCommand } from '@/lib/upgrade-command'
 import { resolveSectionEmpty, useIsStackConfigured } from '@/lib/section-empty'
-import { useFilterStore, matchesFilter } from '@/stores'
+import { useFilterStore, useUiStore, matchesFilter } from '@/stores'
 import { cardSx, monoFont } from '@/theme'
 
 interface SecurityCenterProps {
@@ -17,6 +19,7 @@ interface SecurityCenterProps {
 export function SecurityCenter({ alerts }: SecurityCenterProps) {
   const theme = useTheme()
   const isConfigured = useIsStackConfigured()
+  const packageManager = useUiStore((s) => s.packageManager)
   const { activeFilters, searchQuery, clearFilters } = useFilterStore()
 
   const filtered = alerts
@@ -60,7 +63,12 @@ export function SecurityCenter({ alerts }: SecurityCenterProps) {
             onClearFilters={clearFilters}
           />
         )}
-        {filtered.map((alert) => (
+        {filtered.map((alert) => {
+          const upgradeCommand = alert.fixedVersion
+            ? formatUpgradeCommand(alert.affectedPackage, alert.fixedVersion, packageManager)
+            : null
+
+          return (
           <DetailCard key={alert.id} detail={buildSecurityDetail(alert)} sx={{ ...cardSx(theme), pr: 5 }}>
             <Stack direction="row" alignItems="center" spacing={1} mb={1}>
               <SeverityBadge severity={alert.severity} />
@@ -94,8 +102,10 @@ export function SecurityCenter({ alerts }: SecurityCenterProps) {
                 </Link>
               </Box>
             </Box>
+            {upgradeCommand && <UpgradeCommandRow command={upgradeCommand} compact />}
           </DetailCard>
-        ))}
+          )
+        })}
       </Stack>
     </SectionCard>
   )

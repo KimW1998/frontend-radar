@@ -30,12 +30,18 @@ export const useFilterStore = create<FilterState>()((set) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
 }))
 
+import type { PackageManager } from '@/lib/upgrade-command'
+
 interface UiState {
   sidebarOpen: boolean
   colorMode: 'dark' | 'light'
+  packageManager: PackageManager
   toggleSidebar: () => void
+  closeSidebar: () => void
+  setSidebarOpen: (open: boolean) => void
   toggleColorMode: () => void
   setColorMode: (mode: 'dark' | 'light') => void
+  setPackageManager: (manager: PackageManager) => void
 }
 
 export const useUiStore = create<UiState>()(
@@ -43,14 +49,18 @@ export const useUiStore = create<UiState>()(
     (set) => ({
       sidebarOpen: true,
       colorMode: 'dark',
+      packageManager: 'npm',
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+      closeSidebar: () => set({ sidebarOpen: false }),
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleColorMode: () =>
         set((state) => ({
           colorMode: state.colorMode === 'dark' ? 'light' : 'dark',
         })),
       setColorMode: (mode) => set({ colorMode: mode }),
+      setPackageManager: (manager) => set({ packageManager: manager }),
     }),
-    { name: 'frontend-radar-ui', partialize: (state) => ({ colorMode: state.colorMode }) },
+    { name: 'frontend-radar-ui', partialize: (state) => ({ colorMode: state.colorMode, packageManager: state.packageManager }) },
   ),
 )
 

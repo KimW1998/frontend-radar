@@ -13,6 +13,7 @@ import {
   Switch,
   Tooltip,
   Typography,
+  useMediaQuery,
   useTheme,
 } from '@mui/material'
 import RadarIcon from '@mui/icons-material/Radar'
@@ -89,7 +90,8 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, dataSources }: AppLayoutProps) {
   const theme = useTheme()
-  const { sidebarOpen, toggleSidebar, colorMode, toggleColorMode } = useUiStore()
+  const isDesktop = useMediaQuery(theme.breakpoints.up('md'))
+  const { sidebarOpen, toggleSidebar, closeSidebar, colorMode, toggleColorMode } = useUiStore()
   const routerState = useRouterState()
   const pathname = routerState.location.pathname
   const isDashboard = pathname === '/'
@@ -100,6 +102,14 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
   useEffect(() => {
     if (isReadingSection) setReadingOpen(true)
   }, [isReadingSection])
+
+  useEffect(() => {
+    if (!isDesktop) closeSidebar()
+  }, [pathname, isDesktop, closeSidebar])
+
+  const handleNavClick = () => {
+    if (!isDesktop) closeSidebar()
+  }
 
   return (
     <Box
@@ -112,11 +122,15 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
       }}
     >
       <Drawer
-        variant="persistent"
+        variant={isDesktop ? 'persistent' : 'temporary'}
         open={sidebarOpen}
+        onClose={closeSidebar}
+        ModalProps={{ keepMounted: true }}
         sx={{
-          width: sidebarOpen ? DRAWER_WIDTH : 0,
-          flexShrink: 0,
+          ...(isDesktop && {
+            width: sidebarOpen ? DRAWER_WIDTH : 0,
+            flexShrink: 0,
+          }),
           '& .MuiDrawer-paper': {
             width: DRAWER_WIDTH,
             bgcolor: 'background.paper',
@@ -163,6 +177,7 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
               component={Link}
               to={item.path}
               selected={pathname === item.path}
+              onClick={handleNavClick}
               sx={{ borderRadius: 2, mb: 0.5 }}
             >
               <ListItemIcon sx={{ minWidth: 32, color: 'text.secondary' }}>{item.icon}</ListItemIcon>
@@ -209,6 +224,7 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
                         component={Link}
                         to={child.path}
                         selected={pathname === child.path}
+                        onClick={handleNavClick}
                         sx={{
                           borderRadius: 2,
                           mb: 0.25,
@@ -235,6 +251,7 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
               component={Link}
               to={item.path}
               selected={pathname === item.path}
+              onClick={handleNavClick}
               sx={{ borderRadius: 2, mb: 0.5, mt: 0.5 }}
             >
               <ListItemIcon sx={{ minWidth: 32, color: 'text.secondary' }}>{item.icon}</ListItemIcon>
@@ -306,7 +323,7 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            px: 3,
+            px: { xs: 2, sm: 3 },
             py: 1.5,
             borderBottom: '1px solid',
             borderColor: 'divider',
@@ -341,7 +358,7 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
           </Stack>
         </Box>
 
-        <Box component="main" sx={{ flex: 1, px: 3, py: 2.5, overflow: 'auto' }}>
+        <Box component="main" sx={{ flex: 1, px: { xs: 2, sm: 3 }, py: 2.5, overflow: 'auto' }}>
           {children}
         </Box>
       </Box>

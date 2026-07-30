@@ -10,6 +10,8 @@ import {
   IconButton,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material'
 import ContentPasteIcon from '@mui/icons-material/ContentPaste'
@@ -22,7 +24,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useDashboardRefreshOnSettingsChange } from '@/hooks/useDashboardRefreshOnSettingsChange'
 import { useActiveProject } from '@/hooks/useActiveProject'
 import { getConfiguredPackageCount } from '@/lib/section-empty'
-import { useSettingsStore } from '@/stores'
+import { PACKAGE_MANAGER_LABELS, type PackageManager } from '@/lib/upgrade-command'
+import { useSettingsStore, useUiStore } from '@/stores'
 import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
 import type { PackageJsonImportResult } from '@/services/package-json'
 import { monoFont } from '@/theme'
@@ -41,6 +44,7 @@ export function SettingsPage() {
     setNodeVersion,
     importFromPackageJson,
   } = useSettingsStore()
+  const { packageManager, setPackageManager } = useUiStore()
 
   const [packageJsonInput, setPackageJsonInput] = useState('')
   const [importResult, setImportResult] = useState<PackageJsonImportResult | null>(null)
@@ -83,6 +87,31 @@ export function SettingsPage() {
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
         Manage projects and configure versions for the active project.
       </Typography>
+
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h3" sx={{ mb: 1 }}>
+            Preferences
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+            Package manager used for copy-to-clipboard upgrade commands on the dashboard.
+          </Typography>
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={packageManager}
+            onChange={(_, value: PackageManager | null) => {
+              if (value) setPackageManager(value)
+            }}
+          >
+            {(Object.keys(PACKAGE_MANAGER_LABELS) as PackageManager[]).map((pm) => (
+              <ToggleButton key={pm} value={pm} sx={{ fontFamily: monoFont, px: 2 }}>
+                {PACKAGE_MANAGER_LABELS[pm]}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </CardContent>
+      </Card>
 
       <Card sx={{ mb: 3 }}>
         <CardContent>
