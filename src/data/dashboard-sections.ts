@@ -19,6 +19,12 @@ export const DASHBOARD_SECTIONS = {
     subtitle: 'What you have installed compared to the newest available versions',
     navLabel: 'Package versions',
   },
+  upgradePlan: {
+    id: 'upgrade-plan',
+    title: 'Suggested upgrade order',
+    subtitle: 'Which packages to update first based on peer dependencies between your tracked packages',
+    navLabel: 'Upgrade order',
+  },
   node: {
     id: 'node-upgrade',
     title: 'Your Node.js runtime',

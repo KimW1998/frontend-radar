@@ -1,5 +1,6 @@
-import { Box, Link, Stack, Typography } from '@mui/material'
+import { Alert, Box, Chip, Link as MuiLink, Stack, Typography } from '@mui/material'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import { Link } from '@tanstack/react-router'
 import type { Dependency, UpgradeUrgency } from '@/types'
 import { RISK_COLORS, URGENCY_LABELS } from '@/types'
 import { UpgradeCommandRow } from '@/components/UpgradeCommandRow'
@@ -43,7 +44,7 @@ export function DependencyPackageCardContent({ dep, urgency }: DependencyPackage
           )}
         </Stack>
         {dep.sourceUrl && (
-          <Link
+          <MuiLink
             href={dep.sourceUrl}
             target="_blank"
             rel="noopener"
@@ -51,9 +52,39 @@ export function DependencyPackageCardContent({ dep, urgency }: DependencyPackage
             sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem', flexShrink: 0 }}
           >
             Releases <OpenInNewIcon sx={{ fontSize: 12 }} />
-          </Link>
+          </MuiLink>
         )}
       </Stack>
+
+      {(dep.upgradeBlockers?.length ?? 0) > 0 && (
+        <Stack spacing={0.75} sx={{ mb: 1.5 }}>
+          {dep.upgradeBlockers!.map((blocker) => (
+            <Alert key={`${blocker.npmPackage}-${blocker.requiredRange}`} severity="warning" sx={{ py: 0.5 }}>
+              <Typography variant="body2">{blocker.message}</Typography>
+            </Alert>
+          ))}
+          <Typography
+            component={Link}
+            to="/upgrade-plan"
+            variant="caption"
+            sx={{ color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            View suggested upgrade order →
+          </Typography>
+        </Stack>
+      )}
+
+      {(dep.relatedUpgrades?.length ?? 0) > 0 && (
+        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', alignSelf: 'center' }}>
+            Upgrade together:
+          </Typography>
+          {dep.relatedUpgrades!.map((name) => (
+            <Chip key={name} label={name} size="small" variant="outlined" sx={{ height: 22 }} />
+          ))}
+        </Stack>
+      )}
 
       <Box
         sx={{

@@ -34,6 +34,32 @@ export const AiSummarySchema = z.object({
 })
 export type AiSummary = z.infer<typeof AiSummarySchema>
 
+export const UpgradeBlockerSchema = z.object({
+  packageName: z.string(),
+  npmPackage: z.string(),
+  requiredRange: z.string(),
+  currentVersion: z.string(),
+  targetVersion: z.string(),
+  message: z.string(),
+})
+export type UpgradeBlocker = z.infer<typeof UpgradeBlockerSchema>
+
+export const UpgradePlanPackageSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  npmPackage: z.string(),
+  fromVersion: z.string(),
+  toVersion: z.string(),
+})
+export type UpgradePlanPackage = z.infer<typeof UpgradePlanPackageSchema>
+
+export const UpgradePlanStepSchema = z.object({
+  step: z.number(),
+  title: z.string(),
+  packages: z.array(UpgradePlanPackageSchema),
+})
+export type UpgradePlanStep = z.infer<typeof UpgradePlanStepSchema>
+
 export const DependencySchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -61,6 +87,9 @@ export const DependencySchema = z.object({
       }),
     )
     .optional(),
+  peerDependencies: z.record(z.string()).optional(),
+  upgradeBlockers: z.array(UpgradeBlockerSchema).optional(),
+  relatedUpgrades: z.array(z.string()).optional(),
   summary: AiSummarySchema,
 })
 export type Dependency = z.infer<typeof DependencySchema>
@@ -168,6 +197,7 @@ export const DashboardDataSchema = z.object({
   executiveActions: z.array(ExecutiveActionSchema),
   healthScore: HealthScoreSchema,
   dataSources: z.array(DataSourceStatusSchema),
+  upgradePlan: z.array(UpgradePlanStepSchema),
   lastUpdated: z.string(),
 })
 export type DashboardData = z.infer<typeof DashboardDataSchema>

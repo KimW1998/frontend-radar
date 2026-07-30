@@ -13,7 +13,7 @@ import type {
 import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
 import { extractBreakingApiChanges } from '@/services/breaking-changes'
 import { fetchGitHubReleasesBatch, summarizeReleaseBody, toGitHubFetchResult, type GitHubReleaseInfo } from '@/services/github'
-import { fetchNpmLatest } from '@/services/npm'
+import { fetchNpmLatestDoc } from '@/services/npm'
 import { fetchNodeStatus } from '@/services/node'
 import { fetchPackageVulnerabilities, type PackageVulnerability } from '@/services/osv'
 import { buildSummary, estimateReadingTime } from '@/services/summary'
@@ -23,6 +23,8 @@ import { calculateHealthScore } from '@/services/health'
 import { fetchDataHealth } from '@/services/api'
 
 import { getTrackedPackages } from '@/lib/watchlist'
+import { applyUpgradeConstraints } from '@/lib/upgrade-constraints'
+import type { UpgradePlanStep } from '@/types'
 
 interface DashboardInput {
   configuredVersions: Record<string, string>
@@ -40,6 +42,7 @@ export interface DashboardStackSection {
   securityAlerts: SecurityAlert[]
   breakingChanges: BreakingChange[]
   dataSources: DataSourceStatus[]
+  upgradePlan: UpgradePlanStep[]
 }
 
 function buildFallbackNodeStatus(input: DashboardInput, hasNodeVersion: boolean): NodeStatus {
@@ -122,7 +125,7 @@ async function buildDependency(
   const currentVersion = configuredVersions[pkg.npmPackage]?.trim() || ''
 
   const [npmResult, vulnResult] = await Promise.all([
-    fetchNpmLatest(pkg.npmPackage),
+    fetchNpmLatestDoc(pkg.npmPackage),
     currentVersion
       ? fetchPackageVulnerabilities(pkg.npmPackage, currentVersion)
       : Promise.resolve({
@@ -139,7 +142,7 @@ async function buildDependency(
 
   if (!npmResult.data) return { dependency: null, vulns: [], githubResult: githubResult ?? null }
 
-  const latestVersion = npmResult.data
+  const latestVersion = npmResult.data.version
   const vulns = vulnResult.data ?? []
   const fixedVersions = vulns.map((v) => v.fixedVersion).filter((v): v is string => Boolean(v))
   const recommendedVersion = maxVersion([...fixedVersions, latestVersion]) ?? latestVersion
@@ -176,6 +179,7 @@ async function buildDependency(
       details: v.details,
     })),
     sourceUrl: githubResult?.data?.url ?? `https://www.npmjs.com/package/${pkg.npmPackage}`,
+    peerDependencies: npmResult.data.peerDependencies,
     summary: buildSummary(
       {
         what: vulns.length
@@ -388,7 +392,7 @@ export async function fetchDashboardStackSection(input: DashboardInput): Promise
         itemCount: 0,
       },
     )
-    return { dependencies, securityAlerts, breakingChanges, dataSources }
+    return { dependencies, securityAlerts, breakingChanges, dataSources, upgradePlan: [] }
   }
 
   const githubRepos = [
@@ -470,7 +474,15 @@ export async function fetchDashboardStackSection(input: DashboardInput): Promise
     },
   )
 
-  return { dependencies, securityAlerts, breakingChanges, dataSources }
+  const constrained = applyUpgradeConstraints(dependencies)
+
+  return {
+    dependencies: constrained.dependencies,
+    securityAlerts,
+    breakingChanges,
+    dataSources,
+    upgradePlan: constrained.upgradePlan,
+  }
 }
 
 export async function fetchDashboardData(input: DashboardInput): Promise<DashboardData> {
@@ -481,7 +493,8 @@ export async function fetchDashboardData(input: DashboardInput): Promise<Dashboa
   ])
 
   const { nodeStatus, dataSources: nodeSources } = nodeSection
-  const { dependencies, securityAlerts, breakingChanges, dataSources: stackSources } = stackSection
+  const { dependencies, securityAlerts, breakingChanges, dataSources: stackSources, upgradePlan } =
+    stackSection
 
   const healthScore: HealthScore = isConfigured
     ? calculateHealthScore(dependencies, nodeStatus, breakingChanges, securityAlerts)
@@ -506,6 +519,7 @@ export async function fetchDashboardData(input: DashboardInput): Promise<Dashboa
     executiveActions,
     healthScore,
     dataSources: [...stackSources, ...nodeSources],
+    upgradePlan,
     lastUpdated: new Date().toISOString(),
   }
 }

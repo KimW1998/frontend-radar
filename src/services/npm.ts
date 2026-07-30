@@ -4,6 +4,8 @@ interface NpmLatestResponse {
   version: string
   name: string
   homepage?: string
+  peerDependencies?: Record<string, string>
+  dependencies?: Record<string, string>
 }
 
 interface NpmPackageResponse {
@@ -17,6 +19,12 @@ interface NpmPackageResponse {
   time?: { modified?: string }
 }
 
+export interface NpmLatestDoc {
+  version: string
+  peerDependencies?: Record<string, string>
+  dependencies?: Record<string, string>
+}
+
 export interface NpmPackageMeta {
   description: string
   homepage?: string
@@ -26,12 +34,16 @@ export interface NpmPackageMeta {
   lastPublished?: string
 }
 
-export async function fetchNpmLatest(packageName: string): Promise<FetchResult<string>> {
+export async function fetchNpmLatestDoc(packageName: string): Promise<FetchResult<NpmLatestDoc>> {
   const endpoint = ENDPOINTS.npm(packageName)
   try {
     const data = await fetchJson<NpmLatestResponse>(endpoint)
     return {
-      data: data.version,
+      data: {
+        version: data.version,
+        peerDependencies: data.peerDependencies,
+        dependencies: data.dependencies,
+      },
       source: 'NPM Registry',
       endpoint,
       status: 'ok',
@@ -46,6 +58,14 @@ export async function fetchNpmLatest(packageName: string): Promise<FetchResult<s
       error: error instanceof Error ? error.message : 'Fetch failed',
       itemCount: 0,
     }
+  }
+}
+
+export async function fetchNpmLatest(packageName: string): Promise<FetchResult<string>> {
+  const result = await fetchNpmLatestDoc(packageName)
+  return {
+    ...result,
+    data: result.data?.version ?? null,
   }
 }
 

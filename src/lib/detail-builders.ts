@@ -102,6 +102,21 @@ export function buildDependencyDetail(dep: Dependency): DetailContent {
         { label: 'Upgrade urgency', value: URGENCY_LABELS[dep.summary.upgradeUrgency] },
         ...(dep.releasePublishedAt ? [{ label: 'Release published', value: dep.releasePublishedAt }] : []),
         ...breakingChangesField(dep),
+        ...(dep.upgradeBlockers?.length
+          ? [{ label: 'Upgrade blockers', value: `${dep.upgradeBlockers.length} peer dependency constraint(s)`, highlight: true }]
+          : []),
+        ...(dep.relatedUpgrades?.length
+          ? [{ label: 'Upgrade together', value: dep.relatedUpgrades.join(', ') }]
+          : []),
+        ...(dep.peerDependencies && Object.keys(dep.peerDependencies).length > 0
+          ? [{
+              label: 'Peer dependencies (latest)',
+              value: Object.entries(dep.peerDependencies)
+                .slice(0, 6)
+                .map(([name, range]) => `${name} ${range}`)
+                .join(', '),
+            }]
+          : []),
         { label: 'Security issues', value: String(dep.securityIssues) },
       ],
       body: dep.releaseNotesSummary,

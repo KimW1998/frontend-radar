@@ -94,6 +94,7 @@ export function useDashboardData(enabled = true) {
           dependencies: stackQuery.data.dependencies,
           securityAlerts: stackQuery.data.securityAlerts,
           breakingChanges: stackQuery.data.breakingChanges,
+          upgradePlan: stackQuery.data.upgradePlan,
           nodeStatus: nodeQuery.data.nodeStatus,
           executiveActions,
           healthScore,

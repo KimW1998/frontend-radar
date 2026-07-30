@@ -7,6 +7,7 @@ import { QueryErrorState } from '@/components/QueryErrorState'
 import { SectionSkeleton } from '@/components/SectionSkeleton'
 import { ExecutiveSummary } from '@/features/executive/ExecutiveSummary'
 import { HealthScoreWidget } from '@/features/health/HealthScoreWidget'
+import { UpgradePlanTeaser } from '@/features/upgrade-plan/UpgradePlanContent'
 import { DependencyWatchlist } from '@/features/dependencies/DependencyWatchlist'
 import { NodeUpgradeCenter } from '@/features/node/NodeUpgradeCenter'
 import { SecurityCenter } from '@/features/security/SecurityCenter'
@@ -115,7 +116,10 @@ export function DashboardPage() {
       )}
 
       {stackReady ? (
-        <DependencyWatchlist dependencies={stackQuery.data!.dependencies} />
+        <>
+          <UpgradePlanTeaser upgradePlan={stackQuery.data!.upgradePlan} />
+          <DependencyWatchlist dependencies={stackQuery.data!.dependencies} />
+        </>
       ) : (
         <SectionSkeleton
           title={DASHBOARD_SECTIONS.dependencies.title}

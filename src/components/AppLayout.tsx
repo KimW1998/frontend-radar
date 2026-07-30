@@ -15,9 +15,11 @@ import {
   Typography,
   useMediaQuery,
   useTheme,
+  Badge,
 } from '@mui/material'
 import RadarIcon from '@mui/icons-material/Radar'
 import DashboardIcon from '@mui/icons-material/Dashboard'
+import AccountTreeIcon from '@mui/icons-material/AccountTree'
 import NewspaperIcon from '@mui/icons-material/Newspaper'
 import NewReleasesIcon from '@mui/icons-material/NewReleases'
 import HubIcon from '@mui/icons-material/Hub'
@@ -52,7 +54,15 @@ interface NavGroup {
   children: NavChild[]
 }
 
-const TOP_NAV = [{ label: 'Dashboard', path: '/', icon: <DashboardIcon sx={{ fontSize: 20 }} /> }]
+const TOP_NAV = [
+  { label: 'Dashboard', path: '/', icon: <DashboardIcon sx={{ fontSize: 20 }} /> },
+  {
+    label: 'Upgrade plan',
+    path: '/upgrade-plan',
+    icon: <AccountTreeIcon sx={{ fontSize: 20 }} />,
+    badgeFromSteps: true,
+  },
+]
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -79,9 +89,10 @@ interface AppLayoutProps {
   isRefreshing?: boolean
   lastUpdated?: string
   dataSources?: DataSourceStatus[]
+  upgradePlanStepCount?: number
 }
 
-export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, dataSources }: AppLayoutProps) {
+export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, dataSources, upgradePlanStepCount = 0 }: AppLayoutProps) {
   const theme = useTheme()
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'))
   const { sidebarOpen, toggleSidebar, closeSidebar, colorMode, toggleColorMode } = useUiStore()
@@ -164,7 +175,9 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
         <ProjectSwitcher />
 
         <List sx={{ px: 1, py: 1 }}>
-          {TOP_NAV.map((item) => (
+          {TOP_NAV.map((item) => {
+            const showBadge = item.badgeFromSteps && upgradePlanStepCount > 0
+            return (
             <ListItemButton
               key={item.path}
               component={Link}
@@ -173,13 +186,22 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
               onClick={handleNavClick}
               sx={{ borderRadius: 2, mb: 0.5 }}
             >
-              <ListItemIcon sx={{ minWidth: 32, color: 'text.secondary' }}>{item.icon}</ListItemIcon>
+              <ListItemIcon sx={{ minWidth: 32, color: 'text.secondary' }}>
+                {showBadge ? (
+                  <Badge badgeContent={upgradePlanStepCount} color="primary" max={9}>
+                    {item.icon}
+                  </Badge>
+                ) : (
+                  item.icon
+                )}
+              </ListItemIcon>
               <ListItemText
                 primary={item.label}
                 slotProps={{ primary: { fontSize: '0.8125rem', fontWeight: 500 } }}
               />
             </ListItemButton>
-          ))}
+            )
+          })}
 
           {NAV_GROUPS.map((group) => {
             const groupActive = group.children.some((child) => pathname === child.path)

@@ -7,6 +7,7 @@ import { ReleaseNotesPage } from '@/features/news/ReleaseNotesPage'
 import { TanStackPage } from '@/features/news/TanStackPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage'
+import { UpgradePlanPage } from '@/features/upgrade-plan/UpgradePlanPage'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { useKnowledgeData } from '@/hooks/useKnowledgeData'
 
@@ -25,6 +26,7 @@ function RootComponent() {
       isRefreshing={active.isFetching}
       lastUpdated={isReading ? knowledge.data?.lastUpdated : dashboard.lastUpdated}
       dataSources={dashboard.dataSources}
+      upgradePlanStepCount={dashboard.stackQuery.data?.upgradePlan.length ?? 0}
     >
       <Outlet />
     </AppLayout>
@@ -65,6 +67,12 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
+const upgradePlanRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/upgrade-plan',
+  component: UpgradePlanPage,
+})
+
 const onboardingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/onboarding',
@@ -77,6 +85,7 @@ const routeTree = rootRoute.addChildren([
   releaseNotesRoute,
   tanStackRoute,
   settingsRoute,
+  upgradePlanRoute,
   onboardingRoute,
 ])
 
