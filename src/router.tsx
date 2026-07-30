@@ -23,8 +23,8 @@ function RootComponent() {
     <AppLayout
       onRefresh={() => active.refetch()}
       isRefreshing={active.isFetching}
-      lastUpdated={active.data?.lastUpdated}
-      dataSources={dashboard.data?.dataSources}
+      lastUpdated={isReading ? knowledge.data?.lastUpdated : dashboard.lastUpdated}
+      dataSources={dashboard.dataSources}
     >
       <Outlet />
     </AppLayout>

@@ -1,6 +1,7 @@
 import { Box, Link, Stack, Typography, useTheme } from '@mui/material'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import type { SecurityAlert } from '@/types'
+import { DASHBOARD_SECTIONS } from '@/data/dashboard-sections'
 import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
 import { UpgradeCommandRow } from '@/components/UpgradeCommandRow'
@@ -42,9 +43,9 @@ export function SecurityCenter({ alerts }: SecurityCenterProps) {
 
   return (
     <SectionCard
-      title="Security Center"
-      subtitle="CVEs, advisories, and supply chain alerts"
-      id="security-center"
+      title={DASHBOARD_SECTIONS.security.title}
+      subtitle={DASHBOARD_SECTIONS.security.subtitle}
+      id={DASHBOARD_SECTIONS.security.id}
     >
       <Stack spacing={1}>
         {emptyVariant && (

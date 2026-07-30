@@ -1,7 +1,10 @@
-import { Box, CircularProgress, Typography } from '@mui/material'
+import { Box, Typography } from '@mui/material'
 import { Navigate } from '@tanstack/react-router'
+import { useMemo } from 'react'
+import { DASHBOARD_SECTIONS } from '@/data/dashboard-sections'
 import { FilterBar } from '@/components/FilterBar'
 import { QueryErrorState } from '@/components/QueryErrorState'
+import { SectionSkeleton } from '@/components/SectionSkeleton'
 import { ExecutiveSummary } from '@/features/executive/ExecutiveSummary'
 import { HealthScoreWidget } from '@/features/health/HealthScoreWidget'
 import { DependencyWatchlist } from '@/features/dependencies/DependencyWatchlist'
@@ -16,24 +19,49 @@ export function DashboardPage() {
   const activeProject = useActiveProject()
   const isNodeConfigured = useIsNodeConfigured()
   const configuredCount = useConfiguredPackageCount()
-  const { data, isLoading, isError, isFetching, refetch, isRefetching } = useDashboardData()
+  const {
+    nodeQuery,
+    stackQuery,
+    isError,
+    isFetching,
+    isRefetching,
+    refetch,
+    healthScore,
+    executiveActions,
+  } = useDashboardData()
+
+  const stackReady = Boolean(stackQuery.data)
+  const nodeReady = Boolean(nodeQuery.data)
+  const initialLoad = !stackReady && !nodeReady && (stackQuery.isLoading || nodeQuery.isLoading)
+
+  const emptyHealthScore = useMemo(
+    () => ({
+      score: 0,
+      securityWeight: 0,
+      outdatedWeight: 0,
+      nodeSupportWeight: 0,
+      breakingChangesWeight: 0,
+      recommendedActions: [],
+    }),
+    [],
+  )
 
   if (!activeProject) {
     return <Navigate to="/onboarding" />
   }
 
-  if (isLoading && !data) {
+  if (initialLoad) {
     return (
       <Box sx={{ textAlign: 'center', py: 8 }}>
-        <CircularProgress size={32} sx={{ mb: 2 }} />
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          Fetching live data for {activeProject.name}…
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+          Loading dashboard for {activeProject.name}…
         </Typography>
+        <SectionSkeleton title={DASHBOARD_SECTIONS.healthScore.title} rows={1} />
       </Box>
     )
   }
 
-  if (isError || !data) {
+  if (isError && !stackReady && !nodeReady) {
     return (
       <QueryErrorState
         title="Failed to load dashboard"
@@ -54,15 +82,77 @@ export function DashboardPage() {
         </Typography>
       )}
 
-      <Box id="health-score">
-        <HealthScoreWidget healthScore={data.healthScore} isConfigured={configuredCount > 0} />
-      </Box>
+      {stackReady ? (
+        <Box id="health-score">
+          <HealthScoreWidget
+            healthScore={nodeReady ? healthScore : emptyHealthScore}
+            isConfigured={configuredCount > 0}
+          />
+        </Box>
+      ) : (
+        <SectionSkeleton
+          title={DASHBOARD_SECTIONS.healthScore.title}
+          subtitle="Waiting for package data…"
+          id={DASHBOARD_SECTIONS.healthScore.id}
+          rows={1}
+        />
+      )}
 
-      <ExecutiveSummary actions={data.executiveActions} />
-      <DependencyWatchlist dependencies={data.dependencies} />
-      <NodeUpgradeCenter nodeStatus={data.nodeStatus} isConfigured={isNodeConfigured} />
-      <SecurityCenter alerts={data.securityAlerts} />
-      <BreakingChangesFeed changes={data.breakingChanges} />
+      {stackReady ? (
+        <ExecutiveSummary actions={executiveActions} />
+      ) : (
+        <SectionSkeleton
+          title={DASHBOARD_SECTIONS.executiveSummary.title}
+          subtitle="Waiting for package data…"
+          id={DASHBOARD_SECTIONS.executiveSummary.id}
+          rows={2}
+        />
+      )}
+
+      {stackReady ? (
+        <DependencyWatchlist dependencies={stackQuery.data!.dependencies} />
+      ) : (
+        <SectionSkeleton
+          title={DASHBOARD_SECTIONS.dependencies.title}
+          id={DASHBOARD_SECTIONS.dependencies.id}
+          rows={4}
+        />
+      )}
+
+      {nodeReady ? (
+        <NodeUpgradeCenter
+          nodeStatus={nodeQuery.data!.nodeStatus}
+          isConfigured={isNodeConfigured}
+          enginesNodeRequirement={activeProject.enginesNodeRequirement}
+          runtimeNodeVersion={activeProject.nodeVersion}
+        />
+      ) : (
+        <SectionSkeleton
+          title={DASHBOARD_SECTIONS.node.title}
+          id={DASHBOARD_SECTIONS.node.id}
+          rows={2}
+        />
+      )}
+
+      {stackReady ? (
+        <SecurityCenter alerts={stackQuery.data!.securityAlerts} />
+      ) : (
+        <SectionSkeleton
+          title={DASHBOARD_SECTIONS.security.title}
+          id={DASHBOARD_SECTIONS.security.id}
+          rows={2}
+        />
+      )}
+
+      {stackReady ? (
+        <BreakingChangesFeed changes={stackQuery.data!.breakingChanges} />
+      ) : (
+        <SectionSkeleton
+          title={DASHBOARD_SECTIONS.breakingChanges.title}
+          id={DASHBOARD_SECTIONS.breakingChanges.id}
+          rows={2}
+        />
+      )}
     </>
   )
 }

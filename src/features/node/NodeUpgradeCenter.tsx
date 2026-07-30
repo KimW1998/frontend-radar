@@ -3,7 +3,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import WarningIcon from '@mui/icons-material/Warning'
 import ErrorIcon from '@mui/icons-material/Error'
 import type { NodeStatus } from '@/types'
+import { DASHBOARD_SECTIONS } from '@/data/dashboard-sections'
 import { EmptySectionState } from '@/components/EmptySectionState'
+import { NodeRequirementBanner } from '@/components/NodeVersionFields'
 import { SectionCard } from '@/components/SectionCard'
 import { DetailCard } from '@/components/DetailCard'
 import { StatBox } from '@/components/Badges'
@@ -13,6 +15,8 @@ import { cardSx, monoFont } from '@/theme'
 interface NodeUpgradeCenterProps {
   nodeStatus: NodeStatus
   isConfigured?: boolean
+  enginesNodeRequirement?: string
+  runtimeNodeVersion?: string
 }
 
 const STATUS_CONFIG = {
@@ -23,15 +27,20 @@ const STATUS_CONFIG = {
 
 const EFFORT_COLORS = { low: '#22C55E', medium: '#EAB308', high: '#EF4444' }
 
-export function NodeUpgradeCenter({ nodeStatus, isConfigured = true }: NodeUpgradeCenterProps) {
+export function NodeUpgradeCenter({
+  nodeStatus,
+  isConfigured = true,
+  enginesNodeRequirement,
+  runtimeNodeVersion,
+}: NodeUpgradeCenterProps) {
   const theme = useTheme()
 
   if (!isConfigured) {
     return (
       <SectionCard
-        title="Node.js Upgrade Center"
-        subtitle="LTS tracking, support dates, and migration guidance"
-        id="node-upgrade"
+        title={DASHBOARD_SECTIONS.node.title}
+        subtitle={DASHBOARD_SECTIONS.node.subtitle}
+        id={DASHBOARD_SECTIONS.node.id}
       >
         <EmptySectionState
           variant="not-configured"
@@ -47,10 +56,14 @@ export function NodeUpgradeCenter({ nodeStatus, isConfigured = true }: NodeUpgra
 
   return (
     <SectionCard
-      title="Node.js Upgrade Center"
-      subtitle="LTS tracking, support dates, and migration guidance"
-      id="node-upgrade"
+      title={DASHBOARD_SECTIONS.node.title}
+      subtitle={DASHBOARD_SECTIONS.node.subtitle}
+      id={DASHBOARD_SECTIONS.node.id}
     >
+      <NodeRequirementBanner
+        enginesNodeRequirement={enginesNodeRequirement}
+        nodeVersion={runtimeNodeVersion ?? nodeStatus.currentVersion}
+      />
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
         <DetailCard detail={nodeDetail} sx={{ ...cardSx(theme), p: 2.5, pr: 5 }}>
           <Stack direction="row" alignItems="center" spacing={1} mb={2}>

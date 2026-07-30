@@ -1,17 +1,124 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { useActiveProjectVersions } from '@/hooks/useActiveProject'
-import { fetchDashboardData } from '@/services/dashboard'
+import {
+  buildExecutiveActions,
+  fetchDashboardNodeSection,
+  fetchDashboardStackSection,
+} from '@/services/dashboard'
+import { calculateHealthScore } from '@/services/health'
+import { getConfiguredPackageCount } from '@/lib/section-empty'
 import { useSettingsStore } from '@/stores'
 
+const STALE_TIME = 5 * 60 * 1000
+const REFETCH_INTERVAL = 15 * 60 * 1000
+
 export function useDashboardData(enabled = true) {
+  const queryClient = useQueryClient()
   const activeProjectId = useSettingsStore((s) => s.activeProjectId)
   const { configuredVersions, nodeVersion } = useActiveProjectVersions()
+  const input = { configuredVersions, nodeVersion }
+  const queryKeyBase = ['dashboard', activeProjectId, configuredVersions, nodeVersion] as const
+  const isQueryEnabled = enabled && Boolean(activeProjectId)
 
-  return useQuery({
-    queryKey: ['dashboard', activeProjectId, configuredVersions, nodeVersion],
-    queryFn: () => fetchDashboardData({ configuredVersions, nodeVersion }),
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: 15 * 60 * 1000,
-    enabled: enabled && Boolean(activeProjectId),
+  const [nodeQuery, stackQuery] = useQueries({
+    queries: [
+      {
+        queryKey: [...queryKeyBase, 'node'],
+        queryFn: () => fetchDashboardNodeSection(input),
+        staleTime: STALE_TIME,
+        refetchInterval: REFETCH_INTERVAL,
+        enabled: isQueryEnabled,
+      },
+      {
+        queryKey: [...queryKeyBase, 'stack'],
+        queryFn: () => fetchDashboardStackSection(input),
+        staleTime: STALE_TIME,
+        refetchInterval: REFETCH_INTERVAL,
+        enabled: isQueryEnabled,
+      },
+    ],
   })
+
+  const isConfigured = getConfiguredPackageCount(configuredVersions) > 0
+
+  const healthScore = useMemo(() => {
+    if (!isConfigured || !stackQuery.data || !nodeQuery.data) {
+      return {
+        score: 0,
+        securityWeight: 0,
+        outdatedWeight: 0,
+        nodeSupportWeight: 0,
+        breakingChangesWeight: 0,
+        recommendedActions: [],
+      }
+    }
+    return calculateHealthScore(
+      stackQuery.data.dependencies,
+      nodeQuery.data.nodeStatus,
+      stackQuery.data.breakingChanges,
+      stackQuery.data.securityAlerts,
+    )
+  }, [isConfigured, stackQuery.data, nodeQuery.data])
+
+  const executiveActions = useMemo(() => {
+    if (!isConfigured || !stackQuery.data || !nodeQuery.data) return []
+    return buildExecutiveActions(
+      stackQuery.data.dependencies,
+      stackQuery.data.securityAlerts,
+      nodeQuery.data.nodeStatus,
+    )
+  }, [isConfigured, stackQuery.data, nodeQuery.data])
+
+  const dataSources = useMemo(
+    () => [...(stackQuery.data?.dataSources ?? []), ...(nodeQuery.data?.dataSources ?? [])],
+    [stackQuery.data, nodeQuery.data],
+  )
+
+  const lastUpdated = useMemo(() => {
+    const stamp = Math.max(nodeQuery.dataUpdatedAt, stackQuery.dataUpdatedAt)
+    return stamp ? new Date(stamp).toISOString() : undefined
+  }, [nodeQuery.dataUpdatedAt, stackQuery.dataUpdatedAt])
+
+  const isLoading = nodeQuery.isLoading || stackQuery.isLoading
+  const isFetching = nodeQuery.isFetching || stackQuery.isFetching
+  const isError = nodeQuery.isError || stackQuery.isError
+  const isRefetching = nodeQuery.isRefetching || stackQuery.isRefetching
+
+  const data =
+    nodeQuery.data && stackQuery.data
+      ? {
+          dependencies: stackQuery.data.dependencies,
+          securityAlerts: stackQuery.data.securityAlerts,
+          breakingChanges: stackQuery.data.breakingChanges,
+          nodeStatus: nodeQuery.data.nodeStatus,
+          executiveActions,
+          healthScore,
+          dataSources,
+          lastUpdated: lastUpdated ?? new Date().toISOString(),
+        }
+      : undefined
+
+  const refetch = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: [...queryKeyBase, 'node'] }),
+      queryClient.invalidateQueries({ queryKey: [...queryKeyBase, 'stack'] }),
+    ])
+    return Promise.all([nodeQuery.refetch(), stackQuery.refetch()])
+  }
+
+  return {
+    data,
+    nodeQuery,
+    stackQuery,
+    isLoading,
+    isFetching,
+    isError,
+    isRefetching,
+    refetch,
+    lastUpdated,
+    dataSources,
+    healthScore,
+    executiveActions,
+  }
 }

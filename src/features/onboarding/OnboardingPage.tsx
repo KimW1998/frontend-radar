@@ -26,6 +26,7 @@ import { useActiveProject } from '@/hooks/useActiveProject'
 import type { PackageJsonImportResult } from '@/services/package-json'
 import { useSettingsStore } from '@/stores'
 import { monoFont } from '@/theme'
+import { NodeVersionFields } from '@/components/NodeVersionFields'
 
 const STEPS = ['Project', 'package.json', 'Node.js', 'Review']
 
@@ -83,7 +84,7 @@ export function OnboardingPage() {
     }
     const result = importFromPackageJson(packageJsonInput)
     setImportResult(result)
-    if (result.nodeVersion) setNodeVersion(result.nodeVersion)
+    if (result.nodeVersion && !nodeVersion.trim()) setNodeVersion(result.nodeVersion)
   }
 
   const handleSaveNode = () => {
@@ -240,13 +241,11 @@ export function OnboardingPage() {
               Run <code style={{ fontFamily: monoFont }}>node -v</code> in your terminal and enter
               that value, or use the version your CI pipeline runs.
             </Typography>
-            <TextField
-              label="Node version you run"
-              value={nodeVersion}
-              onChange={(e) => setNodeVersion(e.target.value)}
-              placeholder="e.g. 22.14.0"
-              sx={{ width: 280, mb: 2, '& input': { fontFamily: monoFont } }}
-              helperText="We may pre-fill from package.json engines.node. Always confirm with node -v."
+            <NodeVersionFields
+              nodeVersion={nodeVersion}
+              enginesNodeRequirement={workingProject?.enginesNodeRequirement}
+              onNodeVersionChange={setNodeVersion}
+              compact
             />
             <Stack direction="row" spacing={1}>
               <Button onClick={() => setStep(1)}>Back</Button>
@@ -274,18 +273,25 @@ export function OnboardingPage() {
                 value={`${configuredCount} of ${WATCHLIST_PACKAGES.length}`}
               />
               <SummaryRow
-                label="Node.js"
+                label="Node you run"
                 value={nodeVersion.trim() || workingProject.nodeVersion || 'Not set'}
               />
+              {workingProject.enginesNodeRequirement && (
+                <SummaryRow
+                  label="Project requires"
+                  value={workingProject.enginesNodeRequirement}
+                />
+              )}
             </Stack>
             {configuredCount === 0 && (
-              <Alert severity="warning" sx={{ mb: 2 }}>
-                No packages matched yet — you can finish now and import package.json later in Settings.
+              <Alert severity="error" sx={{ mb: 2 }}>
+                Import at least one watchlist package from package.json before opening the dashboard.
+                Go back to step 2 and paste a valid package.json.
               </Alert>
             )}
             <Stack direction="row" spacing={1}>
               <Button onClick={() => setStep(2)}>Back</Button>
-              <Button variant="contained" onClick={handleFinish}>
+              <Button variant="contained" onClick={handleFinish} disabled={configuredCount === 0}>
                 Open dashboard
               </Button>
             </Stack>

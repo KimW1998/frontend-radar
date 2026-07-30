@@ -23,7 +23,7 @@ interface SettingsState {
   createProject: (name: string) => string
   updateProject: (
     id: string,
-    patch: Partial<Pick<Project, 'name' | 'configuredVersions' | 'nodeVersion'>>,
+    patch: Partial<Pick<Project, 'name' | 'configuredVersions' | 'enginesNodeRequirement' | 'nodeVersion'>>,
   ) => void
   deleteProject: (id: string) => void
   setActiveProject: (id: string) => void
@@ -123,6 +123,7 @@ export const useSettingsStore = create<SettingsState>()(
             matched: [],
             missing: WATCHLIST_PACKAGES.map((p) => ({ name: p.name, npmPackage: p.npmPackage })),
             nodeVersion: null,
+            enginesNode: null,
             errors: ['Create a project first'],
           }
         }
@@ -134,7 +135,8 @@ export const useSettingsStore = create<SettingsState>()(
           updateActiveProject(s, (p) =>
             touchProject(p, {
               configuredVersions,
-              nodeVersion: result.nodeVersion ?? p.nodeVersion,
+              enginesNodeRequirement: result.enginesNode ?? p.enginesNodeRequirement,
+              nodeVersion: p.nodeVersion.trim() ? p.nodeVersion : (result.nodeVersion ?? p.nodeVersion),
             }),
           ),
         )
@@ -144,7 +146,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'frontend-radar-settings',
-      version: 1,
+      version: 2,
       migrate: (persisted, version) => {
         if (version === 0) {
           const old = persisted as LegacySettingsState
@@ -153,6 +155,16 @@ export const useSettingsStore = create<SettingsState>()(
           return {
             projects: [project],
             activeProjectId: project.id,
+          }
+        }
+        if (version === 1) {
+          const state = persisted as SettingsState
+          return {
+            ...state,
+            projects: state.projects.map((p) => ({
+              ...p,
+              enginesNodeRequirement: p.enginesNodeRequirement ?? '',
+            })),
           }
         }
         return persisted as SettingsState

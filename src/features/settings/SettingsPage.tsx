@@ -28,6 +28,7 @@ import { PACKAGE_MANAGER_LABELS, type PackageManager } from '@/lib/upgrade-comma
 import { useSettingsStore, useUiStore } from '@/stores'
 import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
 import type { PackageJsonImportResult } from '@/services/package-json'
+import { NodeVersionFields } from '@/components/NodeVersionFields'
 import { monoFont } from '@/theme'
 
 export function SettingsPage() {
@@ -52,6 +53,7 @@ export function SettingsPage() {
 
   const configuredVersions = activeProject?.configuredVersions ?? {}
   const nodeVersion = activeProject?.nodeVersion ?? ''
+  const enginesNodeRequirement = activeProject?.enginesNodeRequirement ?? ''
 
   const handleImport = () => {
     const result = importFromPackageJson(packageJsonInput)
@@ -245,21 +247,17 @@ export function SettingsPage() {
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h3" sx={{ mb: 1 }}>
-                Node.js version — {activeProject.name}
+                Node.js — {activeProject.name}
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-                The version you run locally or in CI — check with{' '}
-                <code style={{ fontFamily: monoFont }}>node -v</code>. This is separate from{' '}
-                <code style={{ fontFamily: monoFont }}>engines.node</code> in package.json, which
-                only states what the project supports.
+                Track what you run locally or in CI. This is separate from what the project declares
+                in <code style={{ fontFamily: monoFont }}>engines.node</code>.
               </Typography>
-              <TextField
-                label="Node version you run"
-                value={nodeVersion}
-                onChange={(e) => setNodeVersion(e.target.value)}
-                size="small"
-                placeholder="e.g. 22.14.0"
-                sx={{ width: 240, '& input': { fontFamily: monoFont } }}
+              <NodeVersionFields
+                nodeVersion={nodeVersion}
+                enginesNodeRequirement={enginesNodeRequirement}
+                onNodeVersionChange={setNodeVersion}
+                compact
               />
               <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
                 Stored per project in your browser — teammates track their own version separately.

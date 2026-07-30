@@ -2,6 +2,7 @@ import { Box, Chip, Link, Stack, Typography, useTheme } from '@mui/material'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import CodeIcon from '@mui/icons-material/Code'
 import type { BreakingChange } from '@/types'
+import { DASHBOARD_SECTIONS } from '@/data/dashboard-sections'
 import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
 import { DetailCard } from '@/components/DetailCard'
@@ -36,9 +37,9 @@ export function BreakingChangesFeed({ changes }: BreakingChangesFeedProps) {
 
   return (
     <SectionCard
-      title="Breaking Changes Feed"
-      subtitle="Migration guidance for React, Vite, TypeScript, MUI, TanStack"
-      id="breaking-changes"
+      title={DASHBOARD_SECTIONS.breakingChanges.title}
+      subtitle={DASHBOARD_SECTIONS.breakingChanges.subtitle}
+      id={DASHBOARD_SECTIONS.breakingChanges.id}
     >
       <Stack spacing={1.5}>
         {emptyVariant && (

@@ -20,7 +20,10 @@ const PackageJsonSchema = z.object({
 export interface PackageJsonImportResult {
   matched: Array<{ name: string; npmPackage: string; version: string }>
   missing: Array<{ name: string; npmPackage: string }>
+  /** Normalized semver suggestion for pre-fill */
   nodeVersion: string | null
+  /** Raw engines.node or volta.node value from package.json */
+  enginesNode: string | null
   errors: string[]
 }
 
@@ -47,6 +50,11 @@ export function normalizeVersionRange(range: string): string | null {
   return null
 }
 
+function extractEnginesNodeRaw(pkg: z.infer<typeof PackageJsonSchema>): string | null {
+  const raw = pkg.engines?.node?.trim() || pkg.volta?.node?.trim()
+  return raw || null
+}
+
 function extractNodeVersion(pkg: z.infer<typeof PackageJsonSchema>): string | null {
   const candidates = [pkg.volta?.node, pkg.engines?.node].filter(Boolean) as string[]
 
@@ -69,6 +77,7 @@ export function parsePackageJsonInput(input: string): PackageJsonImportResult {
       matched: [],
       missing: WATCHLIST_PACKAGES.map((p) => ({ name: p.name, npmPackage: p.npmPackage })),
       nodeVersion: null,
+      enginesNode: null,
       errors: ['Invalid JSON — paste your full package.json contents.'],
     }
   }
@@ -79,6 +88,7 @@ export function parsePackageJsonInput(input: string): PackageJsonImportResult {
       matched: [],
       missing: WATCHLIST_PACKAGES.map((p) => ({ name: p.name, npmPackage: p.npmPackage })),
       nodeVersion: null,
+      enginesNode: null,
       errors: ['Unrecognized package.json structure.'],
     }
   }
@@ -111,8 +121,9 @@ export function parsePackageJsonInput(input: string): PackageJsonImportResult {
   }
 
   const nodeVersion = extractNodeVersion(pkg)
+  const enginesNode = extractEnginesNodeRaw(pkg)
 
-  return { matched, missing, nodeVersion, errors }
+  return { matched, missing, nodeVersion, enginesNode, errors }
 }
 
 export function applyPackageJsonImport(

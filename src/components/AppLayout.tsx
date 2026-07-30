@@ -71,14 +71,7 @@ const BOTTOM_NAV = [{ label: 'Settings', path: '/settings', icon: <SettingsIcon 
 
 const READING_PATHS = ['/news', '/news/releases', '/tanstack']
 
-const SECTION_LINKS = [
-  { label: 'Executive Summary', hash: '#executive-summary' },
-  { label: 'Health Score', hash: '#health-score' },
-  { label: 'Dependencies', hash: '#dependency-watchlist' },
-  { label: 'Node.js', hash: '#node-upgrade' },
-  { label: 'Security', hash: '#security-center' },
-  { label: 'Breaking Changes', hash: '#breaking-changes' },
-]
+import { SECTION_NAV_LINKS } from '@/data/dashboard-sections'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -278,7 +271,7 @@ export function AppLayout({ children, onRefresh, isRefreshing, lastUpdated, data
             >
               Sections
             </Typography>
-            {SECTION_LINKS.map((link) => (
+            {SECTION_NAV_LINKS.map((link) => (
               <Typography
                 key={link.hash}
                 component="a"

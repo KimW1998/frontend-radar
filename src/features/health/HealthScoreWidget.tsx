@@ -1,6 +1,7 @@
 import { Box, LinearProgress, Stack, Typography, useTheme } from '@mui/material'
 import type { HealthScore } from '@/types'
 import { SectionCard } from '@/components/SectionCard'
+import { DASHBOARD_SECTIONS } from '@/data/dashboard-sections'
 import { cardSx, monoFont } from '@/theme'
 
 interface HealthScoreWidgetProps {
@@ -95,10 +96,10 @@ export function HealthScoreWidget({ healthScore, isConfigured = true }: HealthSc
 
   return (
     <SectionCard
-      title="Dependency Health Score"
+      title={DASHBOARD_SECTIONS.healthScore.title}
       subtitle={
         isConfigured
-          ? 'Weighted score across your stack'
+          ? DASHBOARD_SECTIONS.healthScore.subtitle
           : 'Complete project setup for an accurate score'
       }
     >

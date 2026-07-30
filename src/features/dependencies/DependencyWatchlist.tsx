@@ -2,6 +2,7 @@ import { Box, Link, Stack, Typography } from '@mui/material'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import type { Dependency } from '@/types'
 import { RISK_COLORS } from '@/types'
+import { DASHBOARD_SECTIONS } from '@/data/dashboard-sections'
 import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
 import { UpgradeCommandRow } from '@/components/UpgradeCommandRow'
@@ -39,9 +40,9 @@ export function DependencyWatchlist({ dependencies }: DependencyWatchlistProps) 
 
   return (
     <SectionCard
-      title="Dependency Watchlist"
-      subtitle="Track versions, risks, and security across your stack"
-      id="dependency-watchlist"
+      title={DASHBOARD_SECTIONS.dependencies.title}
+      subtitle={DASHBOARD_SECTIONS.dependencies.subtitle}
+      id={DASHBOARD_SECTIONS.dependencies.id}
     >
       <Stack spacing={1}>
         {emptyVariant && (

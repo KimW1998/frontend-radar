@@ -5,6 +5,7 @@ import type {
   Dependency,
   ExecutiveAction,
   HealthScore,
+  NodeStatus,
   RiskLevel,
   SecurityAlert,
   UpgradeUrgency,
@@ -24,6 +25,57 @@ import { fetchDataHealth } from '@/services/api'
 interface DashboardInput {
   configuredVersions: Record<string, string>
   nodeVersion: string
+}
+
+export interface DashboardNodeSection {
+  nodeStatus: NodeStatus
+  dataSources: DataSourceStatus[]
+}
+
+export interface DashboardStackSection {
+  dependencies: Dependency[]
+  securityAlerts: SecurityAlert[]
+  breakingChanges: BreakingChange[]
+  dataSources: DataSourceStatus[]
+}
+
+function buildFallbackNodeStatus(input: DashboardInput, hasNodeVersion: boolean): NodeStatus {
+  return {
+    currentVersion: input.nodeVersion.trim() || 'Not configured',
+    latestLts: {
+      version: 'unknown',
+      releaseDate: 'unknown',
+      supportEndDate: 'unknown',
+      isLts: true,
+      isCurrent: false,
+    },
+    latestCurrent: {
+      version: 'unknown',
+      releaseDate: 'unknown',
+      supportEndDate: 'unknown',
+      isLts: false,
+      isCurrent: true,
+    },
+    status: 'upgrade-recommended',
+    whyUpgrade: hasNodeVersion
+      ? 'Node.js dist API unreachable.'
+      : 'Set your Node.js version during project setup.',
+    newFeatures: [],
+    securityImplications: hasNodeVersion
+      ? 'Could not fetch Node release data.'
+      : 'Node version is set per project — add yours in Settings or onboarding.',
+    migrationEffort: 'medium',
+    summary: buildSummary({
+      what: hasNodeVersion
+        ? 'Node.js release data could not be fetched.'
+        : 'Node.js version not configured for this project.',
+      why: hasNodeVersion
+        ? 'Node.js dist or endoflife.date API failed.'
+        : 'Different developers and CI environments may run different Node versions.',
+      action: hasNodeVersion ? 'Check network and retry.' : 'Complete project setup with your Node version.',
+      urgency: 'this-sprint',
+    }),
+  }
 }
 
 function packageDisplayName(npmPackage: string): string {
@@ -283,126 +335,144 @@ function buildExecutiveActions(
   return actions.slice(0, 8)
 }
 
+export { buildExecutiveActions }
+
 function isStackConfigured(configuredVersions: Record<string, string>): boolean {
   return Object.values(configuredVersions).some((v) => v?.trim())
 }
 
-export async function fetchDashboardData(input: DashboardInput): Promise<DashboardData> {
-  const isConfigured = isStackConfigured(input.configuredVersions)
+export async function fetchDashboardNodeSection(input: DashboardInput): Promise<DashboardNodeSection> {
   const hasNodeVersion = Boolean(input.nodeVersion.trim())
+  const nodeBundle = hasNodeVersion
+    ? await fetchNodeStatus(input.nodeVersion)
+    : { nodeStatus: null, sources: [] }
 
+  return {
+    nodeStatus: nodeBundle.nodeStatus ?? buildFallbackNodeStatus(input, hasNodeVersion),
+    dataSources: hasNodeVersion ? nodeBundle.sources.map(toSourceStatus) : [],
+  }
+}
+
+export async function fetchDashboardStackSection(input: DashboardInput): Promise<DashboardStackSection> {
+  const isConfigured = isStackConfigured(input.configuredVersions)
   const dataSources: DataSourceStatus[] = []
   const dependencies: Dependency[] = []
   const securityAlerts: SecurityAlert[] = []
   const breakingChanges: BreakingChange[] = []
 
+  if (!isConfigured) {
+    dataSources.push(
+      {
+        id: 'npm-registry',
+        name: 'NPM Registry',
+        endpoint: 'https://registry.npmjs.org/{package}/latest',
+        status: 'unavailable',
+        message: 'Import package.json to compare your stack',
+        itemCount: 0,
+      },
+      {
+        id: 'osv',
+        name: 'OSV Vulnerabilities',
+        endpoint: 'https://api.osv.dev/v1/query',
+        status: 'unavailable',
+        message: 'Configure package versions to run CVE checks',
+        itemCount: 0,
+      },
+    )
+    return { dependencies, securityAlerts, breakingChanges, dataSources }
+  }
+
   const githubRepos = [
     ...new Set(WATCHLIST_PACKAGES.map((pkg) => pkg.githubRepo).filter(Boolean) as string[]),
   ]
 
-  const [githubBatch, dataHealth, nodeBundle] = await Promise.all([
-    isConfigured ? fetchGitHubReleasesBatch(githubRepos) : Promise.resolve({
-      releases: new Map(),
-      errors: new Map(),
-      authenticated: false,
-      viaProxy: false,
-    }),
+  const [githubBatch, dataHealth] = await Promise.all([
+    fetchGitHubReleasesBatch(githubRepos),
     fetchDataHealth(),
-    hasNodeVersion ? fetchNodeStatus(input.nodeVersion) : Promise.resolve({ nodeStatus: null, sources: [] }),
   ])
 
-  if (isConfigured) {
-    const depResults = await Promise.all(
-      WATCHLIST_PACKAGES.map(async (pkg) => {
-        const result = await buildDependency(pkg, input.configuredVersions, githubBatch)
-        return { pkg, result }
-      }),
-    )
+  const depResults = await Promise.all(
+    WATCHLIST_PACKAGES.map(async (pkg) => {
+      const result = await buildDependency(pkg, input.configuredVersions, githubBatch)
+      return { pkg, result }
+    }),
+  )
 
-    for (const { pkg, result } of depResults) {
-      if (result.dependency) dependencies.push(result.dependency)
-      securityAlerts.push(...buildSecurityAlerts(pkg, result.vulns))
-    }
+  for (const { pkg, result } of depResults) {
+    if (result.dependency) dependencies.push(result.dependency)
+    securityAlerts.push(...buildSecurityAlerts(pkg, result.vulns))
+  }
 
-    for (const { pkg, result } of depResults) {
-      if (!result.dependency?.breakingChanges || !pkg.githubRepo) continue
-      const bc = buildBreakingChanges(pkg, result.dependency, result.githubResult?.data?.body ?? null)
-      if (bc) breakingChanges.push(bc)
-    }
+  for (const { pkg, result } of depResults) {
+    if (!result.dependency?.breakingChanges || !pkg.githubRepo) continue
+    const bc = buildBreakingChanges(pkg, result.dependency, result.githubResult?.data?.body ?? null)
+    if (bc) breakingChanges.push(bc)
+  }
 
-    dataSources.push({
-      id: 'npm-registry',
-      name: 'NPM Registry',
-      endpoint: 'https://registry.npmjs.org/{package}/latest',
-      status: dependencies.length > 0 ? 'ok' : 'error',
-      message: `${dependencies.length}/${WATCHLIST_PACKAGES.length} packages resolved`,
-      itemCount: dependencies.length,
-    })
+  dataSources.push({
+    id: 'npm-registry',
+    name: 'NPM Registry',
+    endpoint: 'https://registry.npmjs.org/{package}/latest',
+    status: dependencies.length > 0 ? 'ok' : 'error',
+    message: `${dependencies.length}/${WATCHLIST_PACKAGES.length} packages resolved`,
+    itemCount: dependencies.length,
+  })
 
-    const githubResults = depResults
-      .filter((r) => r.pkg.githubRepo)
-      .map((r) => r.result.githubResult)
-      .filter(Boolean) as FetchResult<GitHubReleaseInfo>[]
-    const githubOk = githubResults.filter((r) => r.status === 'ok' && r.data).length
-    const githubTotal = depResults.filter((r) => r.pkg.githubRepo).length
+  const githubResults = depResults
+    .filter((r) => r.pkg.githubRepo)
+    .map((r) => r.result.githubResult)
+    .filter(Boolean) as FetchResult<GitHubReleaseInfo>[]
+  const githubOk = githubResults.filter((r) => r.status === 'ok' && r.data).length
+  const githubTotal = depResults.filter((r) => r.pkg.githubRepo).length
 
-    let githubStatus: DataSourceStatus['status'] = 'error'
-    let githubMessage = 'GitHub release fetch failed'
+  let githubStatus: DataSourceStatus['status'] = 'error'
+  let githubMessage = 'GitHub release fetch failed'
 
-    if (githubTotal === 0) {
-      githubStatus = 'unavailable'
-      githubMessage = 'No GitHub repos mapped in watchlist'
-    } else if (githubOk === githubTotal) {
-      githubStatus = dataHealth?.githubToken || githubBatch.authenticated ? 'ok' : 'partial'
-      githubMessage =
-        dataHealth?.githubToken || githubBatch.authenticated
-          ? `${githubOk}/${githubTotal} release notes via /api/github-releases`
-          : `${githubOk}/${githubTotal} fetched — set GITHUB_TOKEN on Netlify for 5000 req/hr`
-    } else if (githubOk > 0) {
-      githubStatus = 'partial'
-      githubMessage = `${githubOk}/${githubTotal} release notes fetched`
-    }
+  if (githubTotal === 0) {
+    githubStatus = 'unavailable'
+    githubMessage = 'No GitHub repos mapped in watchlist'
+  } else if (githubOk === githubTotal) {
+    githubStatus = dataHealth?.githubToken || githubBatch.authenticated ? 'ok' : 'partial'
+    githubMessage =
+      dataHealth?.githubToken || githubBatch.authenticated
+        ? `${githubOk}/${githubTotal} release notes via /api/github-releases`
+        : `${githubOk}/${githubTotal} fetched — set GITHUB_TOKEN on Netlify for 5000 req/hr`
+  } else if (githubOk > 0) {
+    githubStatus = 'partial'
+    githubMessage = `${githubOk}/${githubTotal} release notes fetched`
+  }
 
-    dataSources.push({
+  dataSources.push(
+    {
       id: 'github-releases',
       name: 'GitHub Releases',
       endpoint: '/api/github-releases?repos={owner}/{repo},…',
       status: githubStatus,
       message: githubMessage,
       itemCount: githubOk,
-    })
-
-    dataSources.push({
+    },
+    {
       id: 'osv',
       name: 'OSV Vulnerabilities',
       endpoint: 'https://api.osv.dev/v1/query',
       status: 'ok',
       message: `${securityAlerts.length} relevant advisories for configured versions`,
       itemCount: securityAlerts.length,
-    })
-  } else {
-    dataSources.push({
-      id: 'npm-registry',
-      name: 'NPM Registry',
-      endpoint: 'https://registry.npmjs.org/{package}/latest',
-      status: 'unavailable',
-      message: 'Import package.json to compare your stack',
-      itemCount: 0,
-    })
-    dataSources.push({
-      id: 'osv',
-      name: 'OSV Vulnerabilities',
-      endpoint: 'https://api.osv.dev/v1/query',
-      status: 'unavailable',
-      message: 'Configure package versions to run CVE checks',
-      itemCount: 0,
-    })
-  }
+    },
+  )
 
-  const { nodeStatus, sources: nodeSources } = nodeBundle
-  if (hasNodeVersion) {
-    dataSources.push(...nodeSources.map(toSourceStatus))
-  }
+  return { dependencies, securityAlerts, breakingChanges, dataSources }
+}
+
+export async function fetchDashboardData(input: DashboardInput): Promise<DashboardData> {
+  const isConfigured = isStackConfigured(input.configuredVersions)
+  const [nodeSection, stackSection] = await Promise.all([
+    fetchDashboardNodeSection(input),
+    fetchDashboardStackSection(input),
+  ])
+
+  const { nodeStatus, dataSources: nodeSources } = nodeSection
+  const { dependencies, securityAlerts, breakingChanges, dataSources: stackSources } = stackSection
 
   const healthScore: HealthScore = isConfigured
     ? calculateHealthScore(dependencies, nodeStatus, breakingChanges, securityAlerts)
@@ -423,45 +493,10 @@ export async function fetchDashboardData(input: DashboardInput): Promise<Dashboa
     dependencies,
     securityAlerts,
     breakingChanges,
-    nodeStatus: nodeStatus ?? {
-      currentVersion: input.nodeVersion.trim() || 'Not configured',
-      latestLts: {
-        version: 'unknown',
-        releaseDate: 'unknown',
-        supportEndDate: 'unknown',
-        isLts: true,
-        isCurrent: false,
-      },
-      latestCurrent: {
-        version: 'unknown',
-        releaseDate: 'unknown',
-        supportEndDate: 'unknown',
-        isLts: false,
-        isCurrent: true,
-      },
-      status: 'upgrade-recommended',
-      whyUpgrade: hasNodeVersion
-        ? 'Node.js dist API unreachable.'
-        : 'Set your Node.js version during project setup.',
-      newFeatures: [],
-      securityImplications: hasNodeVersion
-        ? 'Could not fetch Node release data.'
-        : 'Node version is set per project — add yours in Settings or onboarding.',
-      migrationEffort: 'medium',
-      summary: buildSummary({
-        what: hasNodeVersion
-          ? 'Node.js release data could not be fetched.'
-          : 'Node.js version not configured for this project.',
-        why: hasNodeVersion
-          ? 'Node.js dist or endoflife.date API failed.'
-          : 'Different developers and CI environments may run different Node versions.',
-        action: hasNodeVersion ? 'Check network and retry.' : 'Complete project setup with your Node version.',
-        urgency: 'this-sprint',
-      }),
-    },
+    nodeStatus,
     executiveActions,
     healthScore,
-    dataSources,
+    dataSources: [...stackSources, ...nodeSources],
     lastUpdated: new Date().toISOString(),
   }
 }

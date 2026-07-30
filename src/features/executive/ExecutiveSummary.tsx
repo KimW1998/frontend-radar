@@ -6,6 +6,7 @@ import ScheduleIcon from '@mui/icons-material/Schedule'
 import LightbulbIcon from '@mui/icons-material/Lightbulb'
 import type { ExecutiveAction } from '@/types'
 import { URGENCY_LABELS } from '@/types'
+import { DASHBOARD_SECTIONS } from '@/data/dashboard-sections'
 import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
 import { DetailCard } from '@/components/DetailCard'
@@ -44,9 +45,9 @@ export function ExecutiveSummary({ actions }: ExecutiveSummaryProps) {
 
   return (
     <SectionCard
-      title="Executive Summary"
-      subtitle="Critical items requiring your attention"
-      id="executive-summary"
+      title={DASHBOARD_SECTIONS.executiveSummary.title}
+      subtitle={DASHBOARD_SECTIONS.executiveSummary.subtitle}
+      id={DASHBOARD_SECTIONS.executiveSummary.id}
     >
       <Stack spacing={1.5}>
         {emptyVariant && (
