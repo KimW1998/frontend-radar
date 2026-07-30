@@ -34,7 +34,9 @@ import { hasActiveDrift } from '@/lib/version-drift'
 import { useStackNotifications } from '@/hooks/useStackNotifications'
 import { PACKAGE_MANAGER_LABELS, type PackageManager } from '@/lib/upgrade-command'
 import { useSettingsStore, useUiStore } from '@/stores'
+import { DiscoveredPackagesPrompt } from '@/components/DiscoveredPackagesPrompt'
 import type { StackImportResult } from '@/services/stack-import'
+import type { GitHubImportPayload } from '@/types/stack-import-ui'
 import { monoFont } from '@/theme'
 
 export function SettingsPage() {
@@ -75,6 +77,15 @@ export function SettingsPage() {
   const handleImport = () => {
     const result = importFromStack({ packageJson: packageJsonInput, lockfile: lockfileInput })
     setImportResult(result)
+    if (result.matched.length > 0) {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    }
+  }
+
+  const handleGitHubImportSuccess = (result: StackImportResult, files: GitHubImportPayload) => {
+    setImportResult(result)
+    setPackageJsonInput(files.packageJson)
+    if (files.lockfile) setLockfileInput(files.lockfile)
     if (result.matched.length > 0) {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     }
@@ -238,7 +249,11 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
-          <GitHubSyncCard projectName={activeProject.name} githubSync={activeProject.githubSync} />
+          <GitHubSyncCard
+            projectName={activeProject.name}
+            githubSync={activeProject.githubSync}
+            onImportSuccess={handleGitHubImportSuccess}
+          />
 
           <Card sx={{ mb: 3 }}>
             <CardContent>
@@ -340,33 +355,24 @@ export function SettingsPage() {
                       ))}
                     </Stack>
                   )}
-                  {importResult.discovered.length > 0 && (
-                    <Box sx={{ mt: 1.5 }}>
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        {importResult.discovered.length} additional dependencies found — add any you want to track:
-                      </Typography>
-                      <Stack direction="row" flexWrap="wrap" gap={0.75} mb={1}>
-                        {importResult.discovered.slice(0, 12).map((item) => (
-                          <Chip
-                            key={item.npmPackage}
-                            label={`${item.npmPackage} ${item.version}`}
-                            size="small"
-                            sx={{ fontFamily: monoFont, fontSize: '0.75rem' }}
-                          />
-                        ))}
-                      </Stack>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => {
-                          trackDiscoveredPackages(importResult.discovered.slice(0, 12).map((item) => item.npmPackage))
-                          queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-                        }}
-                      >
-                        Track discovered packages
-                      </Button>
-                    </Box>
-                  )}
+                  {importResult.discoveredFromPackageJson.length > 0 ||
+                  importResult.discoveredFromLockfileOnly.length > 0 ? (
+                    <DiscoveredPackagesPrompt
+                      importResult={importResult}
+                      onTrackPackageJsonExtras={() => {
+                        trackDiscoveredPackages(
+                          importResult.discoveredFromPackageJson.map((item) => item.npmPackage),
+                        )
+                        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+                      }}
+                      onTrackLockfileExtras={() => {
+                        trackDiscoveredPackages(
+                          importResult.discoveredFromLockfileOnly.slice(0, 24).map((item) => item.npmPackage),
+                        )
+                        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+                      }}
+                    />
+                  ) : null}
                 </Box>
               )}
             </CardContent>

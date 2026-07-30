@@ -22,8 +22,19 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { WATCHLIST_PACKAGES } from '@/data/package-catalog'
 import { getConfiguredPackageCountForProject, getTrackedPackages } from '@/lib/watchlist'
+import {
+  clearOnboardingWizard,
+  initialWizardDraftId,
+  initialWizardNodeVersion,
+  initialWizardProjectName,
+  initialWizardStep,
+  readOnboardingWizard,
+  saveOnboardingWizard,
+} from '@/lib/onboarding-wizard'
 import { useActiveProject } from '@/hooks/useActiveProject'
+import { DiscoveredPackagesPrompt } from '@/components/DiscoveredPackagesPrompt'
 import type { StackImportResult } from '@/services/stack-import'
+import type { GitHubImportPayload } from '@/types/stack-import-ui'
 import { useSettingsStore } from '@/stores'
 import { monoFont } from '@/theme'
 import { NodeVersionFields } from '@/components/NodeVersionFields'
@@ -39,13 +50,13 @@ export function OnboardingPage() {
   const { createProject, setActiveProject, updateProject, importFromStack, trackDiscoveredPackages, projects } =
     useSettingsStore()
 
-  const [step, setStep] = useState(0)
-  const [projectName, setProjectName] = useState('')
-  const [draftProjectId, setDraftProjectId] = useState<string | null>(null)
+  const [step, setStep] = useState(initialWizardStep)
+  const [projectName, setProjectName] = useState(initialWizardProjectName)
+  const [draftProjectId, setDraftProjectId] = useState<string | null>(initialWizardDraftId)
   const [packageJsonInput, setPackageJsonInput] = useState('')
   const [lockfileInput, setLockfileInput] = useState('')
   const [importResult, setImportResult] = useState<StackImportResult | null>(null)
-  const [nodeVersion, setNodeVersion] = useState('')
+  const [nodeVersion, setNodeVersion] = useState(initialWizardNodeVersion)
 
   const workingProject = useMemo(() => {
     const id = draftProjectId ?? activeProject?.id
@@ -53,7 +64,32 @@ export function OnboardingPage() {
     return projects.find((p) => p.id === id) ?? null
   }, [draftProjectId, activeProject, projects])
 
+  const persistWizard = () => {
+    saveOnboardingWizard({
+      step,
+      draftProjectId: draftProjectId ?? workingProject?.id ?? null,
+      projectName,
+      nodeVersion,
+    })
+  }
+
   useEffect(() => {
+    persistWizard()
+  }, [step, draftProjectId, projectName, nodeVersion, workingProject?.id])
+
+  useEffect(() => {
+    const saved = readOnboardingWizard()
+    if (saved) {
+      if (saved.step >= 1) setStep(saved.step)
+      if (saved.draftProjectId) {
+        setDraftProjectId(saved.draftProjectId)
+        setActiveProject(saved.draftProjectId)
+      }
+      if (saved.projectName) setProjectName(saved.projectName)
+      if (saved.nodeVersion) setNodeVersion(saved.nodeVersion)
+      return
+    }
+
     const params = new URLSearchParams(window.location.search)
     if (params.get('new') === 'true' || params.get('new') === '1') return
 
@@ -91,6 +127,14 @@ export function OnboardingPage() {
     setStep(1)
   }
 
+  const ensureWorkingProject = (): string => {
+    if (workingProject) return workingProject.id
+    const id = createProject(projectName.trim() || 'My project')
+    setDraftProjectId(id)
+    setActiveProject(id)
+    return id
+  }
+
   const handleImport = () => {
     ensureWorkingProject()
     const result = importFromStack({ packageJson: packageJsonInput, lockfile: lockfileInput })
@@ -98,16 +142,22 @@ export function OnboardingPage() {
     if (result.nodeVersion && !nodeVersion.trim()) setNodeVersion(result.nodeVersion)
   }
 
-  const ensureWorkingProject = () => {
-    if (workingProject) return
-    const id = createProject(projectName.trim() || 'My project')
-    setDraftProjectId(id)
-    setActiveProject(id)
+  const handleGitHubImportSuccess = (result: StackImportResult, files: GitHubImportPayload) => {
+    setImportResult(result)
+    setPackageJsonInput(files.packageJson)
+    if (files.lockfile) setLockfileInput(files.lockfile)
+    if (result.nodeVersion && !nodeVersion.trim()) setNodeVersion(result.nodeVersion)
+    setStep(1)
   }
 
-  const handleGitHubImportSuccess = (result: StackImportResult) => {
-    setImportResult(result)
-    if (result.nodeVersion && !nodeVersion.trim()) setNodeVersion(result.nodeVersion)
+  const handlePersistBeforeGitHub = () => {
+    const id = ensureWorkingProject()
+    saveOnboardingWizard({
+      step: 1,
+      draftProjectId: id,
+      projectName: projectName.trim() || workingProject?.name || 'My project',
+      nodeVersion,
+    })
   }
 
   const canImport = packageJsonInput.trim().length > 0 || lockfileInput.trim().length > 0
@@ -123,10 +173,14 @@ export function OnboardingPage() {
       setActiveProject(workingProject.id)
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     }
+    clearOnboardingWizard()
     navigate({ to: '/' })
   }
 
-  const canContinueFromImport = configuredCount > 0
+  const canContinueFromImport =
+    configuredCount > 0 ||
+    (importResult?.discoveredFromPackageJson.length ?? 0) > 0 ||
+    (importResult?.discoveredFromLockfileOnly.length ?? 0) > 0
 
   return (
     <Box sx={{ maxWidth: 720, mx: 'auto' }}>
@@ -189,13 +243,14 @@ export function OnboardingPage() {
               <Typography variant="h3">Import your stack</Typography>
             </Stack>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-              Link a GitHub repo or paste your <code style={{ fontFamily: monoFont }}>package.json</code>{' '}
-              and optionally a lockfile for exact installed versions.
+              Connect GitHub and pick your repo, or paste{' '}
+              <code style={{ fontFamily: monoFont }}>package.json</code> and a lockfile manually.
             </Typography>
 
             <GitHubSyncPanel
               compact
               githubSync={workingProject?.githubSync}
+              onBeforeConnect={handlePersistBeforeGitHub}
               onBeforeSync={ensureWorkingProject}
               onImportSuccess={handleGitHubImportSuccess}
             />
@@ -250,12 +305,15 @@ export function OnboardingPage() {
                   <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mb: 1.5 }}>
                     Found {importResult.matched.length} watchlist package
                     {importResult.matched.length !== 1 ? 's' : ''}
+                    {importResult.lockfileFormat && ` · lockfile parsed (${importResult.lockfileFormat})`}
                   </Alert>
                 ) : (
-                  <Alert severity="error">No matching packages found.</Alert>
+                  <Alert severity="info" sx={{ mb: 1.5 }}>
+                    No built-in watchlist matches yet — add extras below or paste a different stack.
+                  </Alert>
                 )}
                 {importResult.matched.length > 0 && (
-                  <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: importResult.discovered.length > 0 ? 1.5 : 0 }}>
+                  <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.5 }}>
                     {importResult.matched.map((item) => (
                       <Chip
                         key={item.npmPackage}
@@ -266,31 +324,19 @@ export function OnboardingPage() {
                     ))}
                   </Stack>
                 )}
-                {importResult.discovered.length > 0 && (
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1 }}>
-                      {importResult.discovered.length} other dependencies found — track any you care about:
-                    </Typography>
-                    <Stack direction="row" flexWrap="wrap" gap={0.75} mb={1}>
-                      {importResult.discovered.slice(0, 8).map((item) => (
-                        <Chip
-                          key={item.npmPackage}
-                          label={`${item.npmPackage} ${item.version}`}
-                          size="small"
-                          variant="outlined"
-                          sx={{ fontFamily: monoFont, fontSize: '0.75rem' }}
-                        />
-                      ))}
-                    </Stack>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => trackDiscoveredPackages(importResult.discovered.slice(0, 8).map((item) => item.npmPackage))}
-                    >
-                      Track discovered packages
-                    </Button>
-                  </Box>
-                )}
+                <DiscoveredPackagesPrompt
+                  importResult={importResult}
+                  onTrackPackageJsonExtras={() =>
+                    trackDiscoveredPackages(
+                      importResult.discoveredFromPackageJson.map((item) => item.npmPackage),
+                    )
+                  }
+                  onTrackLockfileExtras={() =>
+                    trackDiscoveredPackages(
+                      importResult.discoveredFromLockfileOnly.slice(0, 24).map((item) => item.npmPackage),
+                    )
+                  }
+                />
               </Box>
             )}
 

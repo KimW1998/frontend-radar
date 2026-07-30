@@ -57,6 +57,8 @@ export function applyPackageJsonImport(
     ...importResult,
     missing: [],
     discovered: [],
+    discoveredFromPackageJson: [],
+    discoveredFromLockfileOnly: [],
     importedVersions: {},
     lockfileFormat: null,
     source: 'package-json',

@@ -24,14 +24,16 @@ import {
   type GitHubUserRepoOption,
 } from '@/services/github-repo'
 import type { StackImportResult } from '@/services/stack-import'
+import type { GitHubImportPayload } from '@/types/stack-import-ui'
 import { useGitHubAuthStore, useSettingsStore } from '@/stores'
 import type { GitHubSyncConfig } from '@/types/github-sync'
 import { monoFont } from '@/theme'
 
 interface GitHubSyncPanelProps {
   githubSync?: GitHubSyncConfig
+  onBeforeConnect?: () => void
   onBeforeSync?: () => void
-  onImportSuccess?: (result: StackImportResult) => void
+  onImportSuccess?: (result: StackImportResult, files: GitHubImportPayload) => void
   compact?: boolean
 }
 
@@ -46,6 +48,7 @@ function splitFullName(fullName: string): { owner: string; repo: string } | null
 
 export function GitHubSyncPanel({
   githubSync,
+  onBeforeConnect,
   onBeforeSync,
   onImportSuccess,
   compact = false,
@@ -119,6 +122,7 @@ export function GitHubSyncPanel({
 
   const handleConnect = () => {
     try {
+      onBeforeConnect?.()
       startGitHubOAuth(`${window.location.pathname}${window.location.search}`)
     } catch (error) {
       setMessage({
@@ -191,8 +195,16 @@ export function GitHubSyncPanel({
         },
       })
 
-      if (result.matched.length === 0) {
-        setMessage({ type: 'error', text: 'Synced from GitHub but no tracked packages matched.' })
+      const hasImportedData =
+        result.matched.length > 0 ||
+        result.discoveredFromPackageJson.length > 0 ||
+        result.discoveredFromLockfileOnly.length > 0
+
+      if (!hasImportedData) {
+        setMessage({
+          type: 'error',
+          text: 'Fetched files but found no dependencies to import. Check paths or branch.',
+        })
         return
       }
 
@@ -203,11 +215,16 @@ export function GitHubSyncPanel({
       })
 
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      onImportSuccess?.(result)
+      onImportSuccess?.(result, {
+        packageJson: resolved.packageJson,
+        lockfile: resolved.lockfile ?? undefined,
+        lockfilePath: resolved.lockfilePath,
+      })
 
+      const lockfileNote = resolved.lockfilePath ? ` + ${resolved.lockfilePath}` : ''
       setMessage({
         type: 'success',
-        text: `Imported ${result.matched.length} packages from ${config.owner}/${config.repo}${resolved.lockfilePath ? ` (${resolved.lockfilePath})` : ''}.`,
+        text: `Imported from ${config.owner}/${config.repo} (package.json${lockfileNote}). ${result.matched.length} watchlist match${result.matched.length === 1 ? '' : 'es'}.`,
       })
     } catch (error) {
       setMessage({

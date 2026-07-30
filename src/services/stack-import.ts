@@ -13,6 +13,10 @@ export interface StackImportResult {
   matched: StackImportMatch[]
   missing: Array<{ name: string; npmPackage: string }>
   discovered: Array<{ npmPackage: string; version: string; name: string }>
+  /** Direct package.json deps not in the built-in watchlist */
+  discoveredFromPackageJson: Array<{ npmPackage: string; version: string; name: string }>
+  /** Present in lockfile but not listed in package.json dependencies */
+  discoveredFromLockfileOnly: Array<{ npmPackage: string; version: string; name: string }>
   importedVersions: Record<string, string>
   nodeVersion: string | null
   enginesNode: string | null
@@ -108,6 +112,8 @@ export function parseStackImport(
   }
 
   const tracked = new Set(packages.map((pkg) => pkg.npmPackage))
+  const packageJsonDepNames = new Set(Object.keys(packageJsonCore?.allDeps ?? {}))
+
   const discovered = Object.entries(importedVersions)
     .filter(([npmPackage]) => !tracked.has(npmPackage))
     .map(([npmPackage, version]) => ({
@@ -117,6 +123,9 @@ export function parseStackImport(
     }))
     .sort((a, b) => a.npmPackage.localeCompare(b.npmPackage))
 
+  const discoveredFromPackageJson = discovered.filter((item) => packageJsonDepNames.has(item.npmPackage))
+  const discoveredFromLockfileOnly = discovered.filter((item) => !packageJsonDepNames.has(item.npmPackage))
+
   let source: ImportSource = 'package-json'
   if (packageJsonCore && lockfileResult) source = 'combined'
   else if (lockfileResult) source = 'lockfile'
@@ -125,6 +134,8 @@ export function parseStackImport(
     matched,
     missing,
     discovered,
+    discoveredFromPackageJson,
+    discoveredFromLockfileOnly,
     importedVersions,
     nodeVersion: packageJsonCore?.nodeVersion ?? null,
     enginesNode: packageJsonCore?.enginesNode ?? null,
