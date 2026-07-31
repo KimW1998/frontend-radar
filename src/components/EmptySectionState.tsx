@@ -37,9 +37,18 @@ interface EmptySectionStateProps {
   title?: string
   description?: string
   onClearFilters?: () => void
+  actionLabel?: string
+  actionTo?: string
 }
 
-export function EmptySectionState({ variant, title, description, onClearFilters }: EmptySectionStateProps) {
+export function EmptySectionState({
+  variant,
+  title,
+  description,
+  onClearFilters,
+  actionLabel,
+  actionTo,
+}: EmptySectionStateProps) {
   const theme = useTheme()
   const copy = COPY[variant]
 
@@ -58,8 +67,13 @@ export function EmptySectionState({ variant, title, description, onClearFilters 
         </Button>
       )}
       {copy.showSetupLink && (
-        <Button size="small" variant="contained" component={Link} to="/onboarding">
-          Set up project
+        <Button
+          size="small"
+          variant="contained"
+          component={Link}
+          to={actionTo ?? '/onboarding'}
+        >
+          {actionLabel ?? 'Set up project'}
         </Button>
       )}
     </Box>

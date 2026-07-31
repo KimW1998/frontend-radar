@@ -16,10 +16,13 @@ import { useEnsureActiveProject, useSettingsHydrated } from '@/hooks/useSettings
 import { useGitHubOAuthCallback } from '@/hooks/useGitHubOAuthCallback'
 import { useSettingsStore } from '@/stores'
 
+import { usePeriodicGitHubSync } from '@/hooks/usePeriodicGitHubSync'
+
 function RootComponent() {
   const hydrated = useSettingsHydrated()
   useEnsureActiveProject()
   useGitHubOAuthCallback()
+  usePeriodicGitHubSync()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const activeProject = useActiveProject()
   const projects = useSettingsStore((s) => s.projects)
@@ -110,6 +113,9 @@ const settingsRoute = createRoute({
 const upgradePlanRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/upgrade-plan',
+  validateSearch: (search: Record<string, unknown>) => ({
+    package: typeof search.package === 'string' ? search.package : undefined,
+  }),
   component: UpgradePlanPage,
 })
 

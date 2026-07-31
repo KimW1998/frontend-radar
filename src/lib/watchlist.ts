@@ -7,9 +7,14 @@ export function resolveTrackedPackageIds(
   customPackages: CustomPackageEntry[] = [],
 ): string[] {
   const valid = new Set(customPackages.map((pkg) => pkg.id))
-  const resolved = (trackedPackageIds ?? []).filter((id) => valid.has(id))
-  if (resolved.length > 0) return resolved
-  return customPackages.map((pkg) => pkg.id)
+  return (trackedPackageIds ?? []).filter((id) => valid.has(id))
+}
+
+export function hasNoTrackedPackages(
+  trackedPackageIds: string[] | undefined,
+  customPackages: CustomPackageEntry[] = [],
+): boolean {
+  return customPackages.length > 0 && resolveTrackedPackageIds(trackedPackageIds, customPackages).length === 0
 }
 
 export function getTrackedPackages(

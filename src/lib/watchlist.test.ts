@@ -3,17 +3,15 @@ import { createCustomPackage } from '@/types/custom-package'
 import {
   getConfiguredPackageCountForProject,
   getTrackedPackages,
+  hasNoTrackedPackages,
   isProjectStackConfigured,
   resolveTrackedPackageIds,
 } from '@/lib/watchlist'
 
 describe('resolveTrackedPackageIds', () => {
-  it('falls back to all custom packages when none selected', () => {
+  it('returns an empty list when none are selected explicitly', () => {
     const customPackages = [createCustomPackage('react'), createCustomPackage('vite')]
-    expect(resolveTrackedPackageIds([], customPackages)).toEqual([
-      customPackages[0].id,
-      customPackages[1].id,
-    ])
+    expect(resolveTrackedPackageIds([], customPackages)).toEqual([])
   })
 
   it('keeps only valid custom package ids', () => {
@@ -41,6 +39,14 @@ describe('getConfiguredPackageCountForProject', () => {
       customPackages,
     )
     expect(count).toBe(1)
+  })
+})
+
+describe('hasNoTrackedPackages', () => {
+  it('is true when packages exist but none are checked', () => {
+    const customPackages = [createCustomPackage('react')]
+    expect(hasNoTrackedPackages([], customPackages)).toBe(true)
+    expect(hasNoTrackedPackages([customPackages[0].id], customPackages)).toBe(false)
   })
 })
 

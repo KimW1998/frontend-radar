@@ -23,6 +23,8 @@ export interface Project {
   lockfileGraph?: LockfileGraphSnapshot
   /** GitHub repository auto-sync configuration */
   githubSync?: GitHubSyncConfig
+  /** Shown on dashboard after GitHub detected stack changes */
+  lastGitHubSyncChange?: import('@/types/github-sync').GitHubSyncChangeNotice
   createdAt: string
   updatedAt: string
 }

@@ -28,8 +28,11 @@ import { useActiveProject } from '@/hooks/useActiveProject'
 import { TrackedPackagesEditor } from '@/components/TrackedPackagesEditor'
 import { GitHubSyncCard } from '@/components/GitHubSyncCard'
 import { NodeVersionFields } from '@/components/NodeVersionFields'
+import { ImportPreviewAlert } from '@/components/ImportPreviewAlert'
+import { useDashboardData } from '@/hooks/useDashboardData'
 import { getConfiguredPackageCount } from '@/lib/section-empty'
-import { getTrackedPackages } from '@/lib/watchlist'
+import { getTrackedPackages, hasNoTrackedPackages } from '@/lib/watchlist'
+import type { ImportPreview } from '@/lib/import-preview'
 import { hasActiveDrift } from '@/lib/version-drift'
 import { useStackNotifications } from '@/hooks/useStackNotifications'
 import { PACKAGE_MANAGER_LABELS, type PackageManager } from '@/lib/upgrade-command'
@@ -52,6 +55,7 @@ export function SettingsPage() {
     setConfiguredVersion,
     setNodeVersion,
     importFromStack,
+    previewStackImport,
     checkStackDrift,
     trackDiscoveredPackages,
     clearDriftReport,
@@ -64,9 +68,13 @@ export function SettingsPage() {
   } = useUiStore()
   const { requestPermission } = useStackNotifications(undefined, activeProject?.name)
 
+  const { stackQuery } = useDashboardData(Boolean(activeProject))
+  const upgradePlan = stackQuery.data?.upgradePlan ?? []
+
   const [packageJsonInput, setPackageJsonInput] = useState('')
   const [lockfileInput, setLockfileInput] = useState('')
   const [importResult, setImportResult] = useState<StackImportResult | null>(null)
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
   const [showManual, setShowManual] = useState(false)
   const [notificationNotice, setNotificationNotice] = useState<string | null>(null)
 
@@ -81,9 +89,16 @@ export function SettingsPage() {
   const nodeVersion = activeProject?.nodeVersion ?? ''
   const enginesNodeRequirement = activeProject?.enginesNodeRequirement ?? ''
 
+  const handlePreviewImport = () => {
+    const { preview } = previewStackImport({ packageJson: packageJsonInput, lockfile: lockfileInput })
+    setImportPreview(preview)
+    setImportResult(null)
+  }
+
   const handleImport = () => {
     const result = importFromStack({ packageJson: packageJsonInput, lockfile: lockfileInput })
     setImportResult(result)
+    setImportPreview(null)
     if (result.packagesFromPackageJson.length > 0) {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     }
@@ -268,7 +283,14 @@ export function SettingsPage() {
               <TrackedPackagesEditor
                 trackedPackageIds={activeProject.trackedPackageIds}
                 customPackages={activeProject.customPackages}
+                upgradePlan={upgradePlan}
               />
+              {hasNoTrackedPackages(activeProject.trackedPackageIds, activeProject.customPackages) && (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  No packages are checked — the dashboard will stay empty until you select at least one package
+                  to monitor.
+                </Alert>
+              )}
             </CardContent>
           </Card>
 
@@ -321,23 +343,34 @@ export function SettingsPage() {
 
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                 <Button
+                  variant="outlined"
+                  onClick={handlePreviewImport}
+                  disabled={!packageJsonInput.trim() && !lockfileInput.trim()}
+                >
+                  Preview changes
+                </Button>
+                <Button
                   variant="contained"
                   onClick={handleImport}
                   disabled={!packageJsonInput.trim() && !lockfileInput.trim()}
                 >
-                  Import versions
+                  Apply import
                 </Button>
                 <Button
-                  variant="outlined"
+                  variant="text"
                   onClick={handleCheckDrift}
                   disabled={!packageJsonInput.trim() && !lockfileInput.trim()}
                 >
-                  Check drift
+                  Check drift only
                 </Button>
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                   {configuredCount} package{configuredCount === 1 ? '' : 's'} configured
                 </Typography>
               </Stack>
+
+              {importPreview && (
+                <ImportPreviewAlert preview={importPreview} title="Changes if you apply this import" />
+              )}
 
               {activeProject.lastDriftReport && hasActiveDrift(activeProject.lastDriftReport) && (
                 <Alert severity="warning" sx={{ mt: 2 }} action={<Button size="small" onClick={clearDriftReport}>Dismiss</Button>}>

@@ -6,6 +6,7 @@ import { RISK_COLORS, URGENCY_LABELS } from '@/types'
 import { UpgradeCommandRow } from '@/components/UpgradeCommandRow'
 import { RiskBadge } from '@/components/Badges'
 import { formatUpgradeCommand, needsDependencyUpgrade } from '@/lib/upgrade-command'
+import { upgradePlanHref } from '@/lib/upgrade-plan-links'
 import { useUiStore } from '@/stores'
 import { monoFont } from '@/theme'
 
@@ -65,7 +66,7 @@ export function DependencyPackageCardContent({ dep, urgency }: DependencyPackage
           ))}
           <Typography
             component={Link}
-            to="/upgrade-plan"
+            to={upgradePlanHref(dep.npmPackage!)}
             variant="caption"
             sx={{ color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
             onClick={(e) => e.stopPropagation()}
@@ -73,6 +74,24 @@ export function DependencyPackageCardContent({ dep, urgency }: DependencyPackage
             View suggested upgrade order →
           </Typography>
         </Stack>
+      )}
+
+      {showUpgrade && (dep.upgradeBlockers?.length ?? 0) === 0 && (
+        <Typography
+          component={Link}
+          to={upgradePlanHref(dep.npmPackage!)}
+          variant="caption"
+          sx={{
+            color: 'primary.main',
+            textDecoration: 'none',
+            display: 'inline-block',
+            mb: 1.5,
+            '&:hover': { textDecoration: 'underline' },
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          View in upgrade plan →
+        </Typography>
       )}
 
       {(dep.relatedUpgrades?.length ?? 0) > 0 && (

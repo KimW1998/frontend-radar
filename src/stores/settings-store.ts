@@ -7,6 +7,7 @@ import {
   createImportSnapshot,
   detectVersionDrift,
 } from '@/lib/version-drift'
+import { computeImportPreview, type ImportPreview } from '@/lib/import-preview'
 import { createLockfileGraphSnapshot } from '@/lib/lockfile-graph'
 import {
   parseStackImport,
@@ -16,7 +17,7 @@ import { parseLockfileInput } from '@/services/lockfile'
 import { createEmptyProject, type Project } from '@/types/project'
 import { createCustomPackage } from '@/types/custom-package'
 import type { DriftReport } from '@/types/import-snapshot'
-import type { GitHubSyncConfig } from '@/types/github-sync'
+import type { GitHubSyncConfig, GitHubSyncChangeNotice } from '@/types/github-sync'
 
 interface LegacySettingsState {
   configuredVersions?: Record<string, string>
@@ -46,6 +47,7 @@ interface SettingsState {
         | 'lastDriftReport'
         | 'lockfileGraph'
         | 'githubSync'
+        | 'lastGitHubSyncChange'
       >
     >,
   ) => void
@@ -62,6 +64,10 @@ interface SettingsState {
     packages: Array<{ npmPackage: string; version: string }>,
   ) => number
   importFromStack: (input: { packageJson?: string; lockfile?: string }) => StackImportResult
+  previewStackImport: (input: { packageJson?: string; lockfile?: string }) => {
+    result: StackImportResult
+    preview: ImportPreview
+  }
   checkStackDrift: (input: { packageJson?: string; lockfile?: string }) => DriftReport
   importFromPackageJson: (json: string) => StackImportResult
   clearDriftReport: () => void
@@ -70,7 +76,9 @@ interface SettingsState {
     packageJson: string
     lockfile?: string
     githubSync: GitHubSyncConfig
+    source?: 'auto' | 'manual'
   }) => StackImportResult
+  dismissGitHubSyncChange: () => void
 }
 
 function touchProject(project: Project, patch: Partial<Project>): Project {
@@ -124,8 +132,20 @@ function applyPackageJsonTracking(
 
   return {
     customPackages,
-    trackedPackageIds: resolveTrackedPackageIds(trackedPackageIds, customPackages),
+    trackedPackageIds,
     configuredVersions,
+  }
+}
+
+function buildGitHubSyncChangeNotice(
+  preview: ImportPreview,
+  source: 'auto' | 'manual',
+): GitHubSyncChangeNotice | undefined {
+  if (!preview.hasChanges) return undefined
+  return {
+    detectedAt: new Date().toISOString(),
+    source,
+    preview,
   }
 }
 
@@ -232,7 +252,6 @@ export const useSettingsStore = create<SettingsState>()(
           updateActiveProject(state, (p) => {
             const current = resolveTrackedPackageIds(p.trackedPackageIds, p.customPackages)
             const has = current.includes(packageId)
-            if (has && current.length <= 1) return p
             const next = has ? current.filter((id) => id !== packageId) : [...current, packageId]
             return touchProject(p, { trackedPackageIds: next })
           }),
@@ -243,8 +262,8 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => {
           const active = getActiveProject(state)
           if (!active) return state
-          const resolved = resolveTrackedPackageIds(packageIds, active.customPackages)
-          if (resolved.length === 0) return state
+          const valid = new Set(active.customPackages.map((pkg) => pkg.id))
+          const resolved = packageIds.filter((id) => valid.has(id))
           return updateActiveProject(state, (p) => touchProject(p, { trackedPackageIds: resolved }))
         })
       },
@@ -364,11 +383,24 @@ export const useSettingsStore = create<SettingsState>()(
               ),
               lastDriftReport: drift,
               lockfileGraph: lockfileGraph ?? p.lockfileGraph,
+              lastGitHubSyncChange: undefined,
             }),
           ),
         )
 
         return result
+      },
+
+      previewStackImport: (input) => {
+        const active = getActiveProject(get())
+        if (!active) {
+          const result = emptyStackImportResult('Create a project first')
+          return { result, preview: { added: [], removed: [], versionChanges: [], hasChanges: false } }
+        }
+
+        const { result } = runStackImport(active, input)
+        const preview = computeImportPreview(active, result)
+        return { result, preview }
       },
 
       checkStackDrift: (input) => {
@@ -390,13 +422,14 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => updateActiveProject(state, (p) => touchProject(p, { githubSync: config })))
       },
 
-      applyGitHubImport: ({ packageJson, lockfile, githubSync }) => {
+      applyGitHubImport: ({ packageJson, lockfile, githubSync, source = 'manual' }) => {
         const active = getActiveProject(get())
         if (!active) {
           return emptyStackImportResult('Create a project first')
         }
 
         const { result, drift } = runStackImport(active, { packageJson, lockfile })
+        const preview = computeImportPreview(active, result)
         const packageJsonTracking =
           result.packagesFromPackageJson.length > 0
             ? applyPackageJsonTracking(active, result.packagesFromPackageJson)
@@ -408,6 +441,7 @@ export const useSettingsStore = create<SettingsState>()(
         const nodeVersion = active.nodeVersion.trim() ? active.nodeVersion : (result.nodeVersion ?? active.nodeVersion)
         const lockfileGraph = buildLockfileGraph(lockfile)
         const syncConfig = { ...githubSync, lastSyncedAt: new Date().toISOString() }
+        const changeNotice = buildGitHubSyncChangeNotice(preview, source)
 
         set((state) =>
           updateActiveProject(state, (p) =>
@@ -423,16 +457,30 @@ export const useSettingsStore = create<SettingsState>()(
               lastDriftReport: drift,
               lockfileGraph: lockfileGraph ?? p.lockfileGraph,
               githubSync: syncConfig,
+              lastGitHubSyncChange:
+                source === 'auto' ? (changeNotice ?? p.lastGitHubSyncChange) : p.lastGitHubSyncChange,
             }),
           ),
         )
 
         return result
       },
+
+      dismissGitHubSyncChange: () => {
+        set((state) =>
+          updateActiveProject(state, (p) =>
+            touchProject(p, {
+              lastGitHubSyncChange: p.lastGitHubSyncChange
+                ? { ...p.lastGitHubSyncChange, dismissed: true }
+                : undefined,
+            }),
+          ),
+        )
+      },
     }),
     {
       name: 'frontend-radar-settings',
-      version: 7,
+      version: 8,
       migrate: (persisted, version) => {
         if (version === 0) {
           const old = persisted as LegacySettingsState
@@ -469,6 +517,19 @@ export const useSettingsStore = create<SettingsState>()(
             projects: state.projects.map((p) => ({
               ...p,
               trackedPackageIds: resolveTrackedPackageIds(p.trackedPackageIds, p.customPackages ?? []),
+            })),
+          }
+        }
+        if (version === 7) {
+          const state = persisted as SettingsState
+          return {
+            ...state,
+            projects: state.projects.map((p) => ({
+              ...p,
+              trackedPackageIds:
+                p.trackedPackageIds.length === 0 && p.customPackages.length > 0
+                  ? p.customPackages.map((pkg) => pkg.id)
+                  : resolveTrackedPackageIds(p.trackedPackageIds, p.customPackages),
             })),
           }
         }

@@ -7,7 +7,9 @@ import {
   Chip,
   CircularProgress,
   Divider,
+  FormControlLabel,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material'
@@ -15,6 +17,9 @@ import GitHubIcon from '@mui/icons-material/GitHub'
 import LinkOffIcon from '@mui/icons-material/LinkOff'
 import SyncIcon from '@mui/icons-material/Sync'
 import { useQueryClient } from '@tanstack/react-query'
+import { ImportPreviewAlert } from '@/components/ImportPreviewAlert'
+import { GITHUB_AUTO_SYNC_INTERVAL_MS } from '@/hooks/usePeriodicGitHubSync'
+import type { ImportPreview } from '@/lib/import-preview'
 import { assertRepoInUserList } from '@/lib/github-repo-access'
 import { isGitHubOAuthConfigured, startGitHubOAuth } from '@/services/github-auth'
 import {
@@ -26,6 +31,7 @@ import {
 import type { StackImportResult } from '@/services/stack-import'
 import type { GitHubImportPayload } from '@/types/stack-import-ui'
 import { useGitHubAuthStore, useSettingsStore } from '@/stores'
+import { useActiveProject } from '@/hooks/useActiveProject'
 import type { GitHubSyncConfig } from '@/types/github-sync'
 import { monoFont } from '@/theme'
 
@@ -60,7 +66,8 @@ export function GitHubSyncPanel({
   const authNotice = useGitHubAuthStore((s) => s.authNotice)
   const setAuthNotice = useGitHubAuthStore((s) => s.setAuthNotice)
   const disconnect = useGitHubAuthStore((s) => s.disconnect)
-  const { setGitHubSync, applyGitHubImport } = useSettingsStore()
+  const activeProject = useActiveProject()
+  const { setGitHubSync, applyGitHubImport, previewStackImport } = useSettingsStore()
 
   const [branch, setBranch] = useState(githubSync?.branch ?? 'main')
   const [packageJsonPath, setPackageJsonPath] = useState(githubSync?.packageJsonPath ?? 'package.json')
@@ -71,6 +78,14 @@ export function GitHubSyncPanel({
   const [userRepos, setUserRepos] = useState<GitHubUserRepoOption[]>([])
   const [selectedRepo, setSelectedRepo] = useState<GitHubUserRepoOption | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null)
+  const [pendingSync, setPendingSync] = useState<{
+    packageJson: string
+    lockfile?: string
+    lockfilePath?: string
+    config: GitHubSyncConfig
+    preview: ImportPreview
+  } | null>(null)
+  const autoSyncEnabled = githubSync?.autoSyncEnabled !== false
 
   useEffect(() => {
     if (!accessToken) {
@@ -132,7 +147,7 @@ export function GitHubSyncPanel({
     }
   }
 
-  const syncNow = async () => {
+  const syncNow = async (applyChanges = false) => {
     if (!accessToken) {
       setMessage({
         type: 'error',
@@ -170,9 +185,57 @@ export function GitHubSyncPanel({
       return
     }
 
+    if (applyChanges && pendingSync) {
+      onBeforeSync?.()
+      setSyncing(true)
+      setMessage(null)
+
+      try {
+        const result = applyGitHubImport({
+          packageJson: pendingSync.packageJson,
+          lockfile: pendingSync.lockfile,
+          githubSync: {
+            ...pendingSync.config,
+            lockfilePath: pendingSync.lockfilePath ?? pendingSync.config.lockfilePath,
+            autoSyncEnabled,
+          },
+          source: 'manual',
+        })
+
+        setGitHubSync({
+          ...pendingSync.config,
+          lockfilePath: pendingSync.lockfilePath ?? pendingSync.config.lockfilePath,
+          lastSyncedAt: new Date().toISOString(),
+          autoSyncEnabled,
+        })
+
+        await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+        onImportSuccess?.(result, {
+          packageJson: pendingSync.packageJson,
+          lockfile: pendingSync.lockfile,
+          lockfilePath: pendingSync.lockfilePath,
+        })
+
+        setPendingSync(null)
+        setMessage({
+          type: 'success',
+          text: `Applied changes from ${config.owner}/${config.repo}. ${result.packagesFromPackageJson.length} package${result.packagesFromPackageJson.length === 1 ? '' : 's'} tracked.`,
+        })
+      } catch (error) {
+        setMessage({
+          type: 'error',
+          text: error instanceof Error ? error.message : 'GitHub sync failed',
+        })
+      } finally {
+        setSyncing(false)
+      }
+      return
+    }
+
     onBeforeSync?.()
     setSyncing(true)
     setMessage(null)
+    setPendingSync(null)
 
     try {
       const response = await fetchGitHubRepoFiles(config, accessToken)
@@ -186,13 +249,9 @@ export function GitHubSyncPanel({
         return
       }
 
-      const result = applyGitHubImport({
+      const { result, preview } = previewStackImport({
         packageJson: resolved.packageJson,
         lockfile: resolved.lockfile ?? undefined,
-        githubSync: {
-          ...config,
-          lockfilePath: resolved.lockfilePath ?? config.lockfilePath,
-        },
       })
 
       const hasImportedData =
@@ -207,23 +266,67 @@ export function GitHubSyncPanel({
         return
       }
 
-      setGitHubSync({
-        ...config,
-        lockfilePath: resolved.lockfilePath ?? config.lockfilePath,
-        lastSyncedAt: new Date().toISOString(),
-      })
+      if (!preview.hasChanges) {
+        setGitHubSync({
+          ...config,
+          lockfilePath: resolved.lockfilePath ?? config.lockfilePath,
+          lastSyncedAt: new Date().toISOString(),
+          autoSyncEnabled,
+        })
+        setMessage({
+          type: 'info',
+          text: `Already up to date with ${config.owner}/${config.repo} (${config.branch}).`,
+        })
+        return
+      }
 
-      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      onImportSuccess?.(result, {
+      const isFirstImport = (activeProject?.customPackages.length ?? 0) === 0
+      if (isFirstImport) {
+        const importResult = applyGitHubImport({
+          packageJson: resolved.packageJson,
+          lockfile: resolved.lockfile ?? undefined,
+          githubSync: {
+            ...config,
+            lockfilePath: resolved.lockfilePath ?? config.lockfilePath,
+            autoSyncEnabled,
+          },
+          source: 'manual',
+        })
+
+        setGitHubSync({
+          ...config,
+          lockfilePath: resolved.lockfilePath ?? config.lockfilePath,
+          lastSyncedAt: new Date().toISOString(),
+          autoSyncEnabled,
+        })
+
+        await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+        onImportSuccess?.(importResult, {
+          packageJson: resolved.packageJson,
+          lockfile: resolved.lockfile ?? undefined,
+          lockfilePath: resolved.lockfilePath ?? undefined,
+        })
+
+        setMessage({
+          type: 'success',
+          text: `Imported from ${config.owner}/${config.repo}. ${importResult.packagesFromPackageJson.length} package${importResult.packagesFromPackageJson.length === 1 ? '' : 's'} tracked.`,
+        })
+        return
+      }
+
+      setPendingSync({
         packageJson: resolved.packageJson,
         lockfile: resolved.lockfile ?? undefined,
-        lockfilePath: resolved.lockfilePath,
+        lockfilePath: resolved.lockfilePath ?? undefined,
+        config: {
+          ...config,
+          lockfilePath: resolved.lockfilePath ?? config.lockfilePath,
+        },
+        preview,
       })
-
-      const lockfileNote = resolved.lockfilePath ? ` + ${resolved.lockfilePath}` : ''
       setMessage({
-        type: 'success',
-        text: `Imported from ${config.owner}/${config.repo} (package.json${lockfileNote}). ${result.packagesFromPackageJson.length} package${result.packagesFromPackageJson.length === 1 ? '' : 's'} tracked.`,
+        type: 'info',
+        text: `Review changes from ${config.owner}/${config.repo} before applying.`,
       })
     } catch (error) {
       setMessage({
@@ -381,17 +484,49 @@ export function GitHubSyncPanel({
           <Button
             variant="contained"
             startIcon={syncing ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
-            onClick={syncNow}
+            onClick={() => syncNow(false)}
             disabled={syncing || !importReady}
           >
-            {syncing ? 'Importing…' : 'Import from GitHub'}
+            {syncing ? 'Checking GitHub…' : pendingSync ? 'Re-check GitHub' : 'Check GitHub for changes'}
           </Button>
+          {pendingSync && (
+            <>
+              <Button variant="contained" color="success" onClick={() => syncNow(true)} disabled={syncing}>
+                Apply changes
+              </Button>
+              <Button variant="outlined" onClick={() => setPendingSync(null)} disabled={syncing}>
+                Cancel
+              </Button>
+            </>
+          )}
           {githubSync?.lastSyncedAt && (
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               Last synced {new Date(githubSync.lastSyncedAt).toLocaleString()}
             </Typography>
           )}
         </Stack>
+
+        {githubSync && (
+          <FormControlLabel
+            control={
+              <Switch
+                checked={autoSyncEnabled}
+                onChange={(_, checked) => {
+                  setGitHubSync({ ...githubSync, autoSyncEnabled: checked })
+                }}
+              />
+            }
+            label={`Automatically re-check GitHub every ${GITHUB_AUTO_SYNC_INTERVAL_MS / 60_000} minutes while this app is open`}
+          />
+        )}
+
+        {pendingSync && (
+          <ImportPreviewAlert
+            preview={pendingSync.preview}
+            severity="warning"
+            title="GitHub changes ready to apply"
+          />
+        )}
 
         {message && (
           <Alert severity={message.type === 'info' ? 'info' : message.type}>{message.text}</Alert>

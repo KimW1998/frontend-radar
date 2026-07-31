@@ -1,6 +1,7 @@
 import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Stack, Typography } from '@mui/material'
 import AccountTreeIcon from '@mui/icons-material/AccountTree'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
+import SettingsIcon from '@mui/icons-material/Settings'
 import { Link } from '@tanstack/react-router'
 import type { Dependency, UpgradePlanStep } from '@/types'
 import { UpgradeCommandRow } from '@/components/UpgradeCommandRow'
@@ -17,6 +18,7 @@ import { monoFont } from '@/theme'
 interface UpgradePlanContentProps {
   upgradePlan: UpgradePlanStep[]
   dependencies?: Dependency[]
+  highlightPackage?: string
   showBlockers?: boolean
   showProgress?: boolean
   showExport?: boolean
@@ -29,6 +31,7 @@ export function countUpgradePlanPackages(upgradePlan: UpgradePlanStep[]): number
 export function UpgradePlanContent({
   upgradePlan,
   dependencies = [],
+  highlightPackage,
   showBlockers = false,
   showProgress = false,
   showExport = false,
@@ -49,7 +52,17 @@ export function UpgradePlanContent({
   return (
     <Stack spacing={2}>
       {showExport && upgradePlan.length > 0 && (
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+          <Button
+            size="small"
+            variant="outlined"
+            component={Link}
+            to="/settings"
+            startIcon={<SettingsIcon />}
+            sx={{ alignSelf: { xs: 'stretch', sm: 'flex-start' } }}
+          >
+            Manage tracked packages
+          </Button>
           <Button
             size="small"
             variant="outlined"
@@ -82,16 +95,22 @@ export function UpgradePlanContent({
         )
         const combinedCommand = stepCommands.join(' && ')
         const allDone = showProgress && step.packages.every((pkg) => isPackageCompleted(projectId, pkg.id))
+        const stepHighlighted = highlightPackage
+          ? step.packages.some(
+              (pkg) => pkg.npmPackage === highlightPackage || pkg.id === highlightPackage,
+            )
+          : false
 
         return (
           <Box
             key={step.step}
+            id={stepHighlighted ? 'upgrade-plan-highlight' : undefined}
             sx={{
               p: 2,
               borderRadius: 2,
               border: '1px solid',
-              borderColor: allDone ? 'success.main' : 'divider',
-              bgcolor: 'background.paper',
+              borderColor: stepHighlighted ? 'primary.main' : allDone ? 'success.main' : 'divider',
+              bgcolor: stepHighlighted ? 'action.selected' : 'background.paper',
               opacity: allDone ? 0.85 : 1,
             }}
           >
@@ -129,8 +148,17 @@ export function UpgradePlanContent({
               {step.packages.map((pkg) => {
                 const command = formatUpgradeCommand(pkg.npmPackage, pkg.toVersion, packageManager)
                 const done = showProgress && isPackageCompleted(projectId, pkg.id)
+                const highlighted =
+                  highlightPackage === pkg.npmPackage || highlightPackage === pkg.id
                 return (
-                  <Box key={pkg.id}>
+                  <Box
+                    key={pkg.id}
+                    sx={{
+                      p: highlighted ? 1 : 0,
+                      borderRadius: highlighted ? 1 : 0,
+                      bgcolor: highlighted ? 'action.hover' : 'transparent',
+                    }}
+                  >
                     <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap mb={0.5}>
                       {showProgress && (
                         <FormControlLabel

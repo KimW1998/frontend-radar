@@ -1,5 +1,6 @@
 import { Box, Typography } from '@mui/material'
-import { Navigate } from '@tanstack/react-router'
+import { Navigate, useSearch } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import { DASHBOARD_SECTIONS } from '@/data/dashboard-sections'
 import { EmptySectionState } from '@/components/EmptySectionState'
@@ -13,12 +14,22 @@ import { useConfiguredPackageCount } from '@/lib/section-empty'
 import { useDashboardData } from '@/hooks/useDashboardData'
 
 export function UpgradePlanPage() {
+  const { package: highlightPackage } = useSearch({ from: '/upgrade-plan' })
   const activeProject = useActiveProject()
   const configuredCount = useConfiguredPackageCount()
   const { stackQuery, isError, isFetching, isRefetching, refetch } = useDashboardData()
 
   const stackReady = Boolean(stackQuery.data)
   const initialLoad = Boolean(activeProject) && !stackReady && stackQuery.isFetching
+  const upgradePlanLength = stackQuery.data?.upgradePlan.length ?? 0
+
+  useEffect(() => {
+    if (!highlightPackage || upgradePlanLength === 0) return
+    const timer = window.setTimeout(() => {
+      document.getElementById('upgrade-plan-highlight')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 150)
+    return () => window.clearTimeout(timer)
+  }, [highlightPackage, upgradePlanLength])
 
   if (!activeProject) {
     return <Navigate to="/onboarding" replace />
@@ -65,6 +76,8 @@ export function UpgradePlanPage() {
           variant="not-configured"
           title="Configure your stack first"
           description="Import your package.json in Settings so we can build an upgrade plan for your tracked packages."
+          actionLabel="Open Settings"
+          actionTo="/settings"
         />
       ) : upgradePlan.length === 0 ? (
         <Box
@@ -91,6 +104,7 @@ export function UpgradePlanPage() {
         <UpgradePlanContent
           upgradePlan={upgradePlan}
           dependencies={dependencies}
+          highlightPackage={highlightPackage}
           showBlockers
           showProgress
           showExport

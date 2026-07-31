@@ -9,6 +9,8 @@ import { ExecutiveSummary } from '@/features/executive/ExecutiveSummary'
 import { HealthScoreWidget } from '@/features/health/HealthScoreWidget'
 import { UpgradePlanTeaser } from '@/features/upgrade-plan/UpgradePlanContent'
 import { VersionDriftBanner } from '@/components/VersionDriftBanner'
+import { GitHubSyncChangeBanner } from '@/components/GitHubSyncChangeBanner'
+import { TrackedPackagesEmptyBanner } from '@/components/TrackedPackagesEmptyBanner'
 import { useStackNotifications } from '@/hooks/useStackNotifications'
 import { DependencyWatchlist } from '@/features/dependencies/DependencyWatchlist'
 import { NodeUpgradeCenter } from '@/features/node/NodeUpgradeCenter'
@@ -17,6 +19,7 @@ import { BreakingChangesFeed } from '@/features/breaking/BreakingChangesFeed'
 import { TransitiveDependenciesSection } from '@/features/dependencies/TransitiveDependenciesSection'
 import { useActiveProject, useIsNodeConfigured } from '@/hooks/useActiveProject'
 import { useConfiguredPackageCount } from '@/lib/section-empty'
+import { hasNoTrackedPackages } from '@/lib/watchlist'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { useSettingsStore } from '@/stores'
 
@@ -36,6 +39,7 @@ export function DashboardPage() {
     data,
   } = useDashboardData()
   const clearDriftReport = useSettingsStore((s) => s.clearDriftReport)
+  const dismissGitHubSyncChange = useSettingsStore((s) => s.dismissGitHubSyncChange)
   useStackNotifications(data, activeProject?.name)
 
   const stackReady = Boolean(stackQuery.data)
@@ -62,6 +66,15 @@ export function DashboardPage() {
   if (!activeProject) {
     return <Navigate to="/onboarding" replace />
   }
+
+  const noTrackedPackages = hasNoTrackedPackages(
+    activeProject.trackedPackageIds,
+    activeProject.customPackages,
+  )
+  const githubChangeNotice = activeProject.lastGitHubSyncChange
+  const githubRepoLabel = activeProject.githubSync
+    ? `${activeProject.githubSync.owner}/${activeProject.githubSync.repo}`
+    : ''
 
   if (initialLoad) {
     return (
@@ -93,6 +106,16 @@ export function DashboardPage() {
         <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
           Refreshing live data…
         </Typography>
+      )}
+
+      {noTrackedPackages && <TrackedPackagesEmptyBanner />}
+
+      {githubChangeNotice && !githubChangeNotice.dismissed && githubRepoLabel && (
+        <GitHubSyncChangeBanner
+          notice={githubChangeNotice}
+          repoLabel={githubRepoLabel}
+          onDismiss={dismissGitHubSyncChange}
+        />
       )}
 
       {stackReady && (
