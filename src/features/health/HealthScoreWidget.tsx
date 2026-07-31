@@ -1,7 +1,9 @@
 import { Box, LinearProgress, Stack, Typography, useTheme } from '@mui/material'
 import type { HealthScore } from '@/types'
 import { SectionCard } from '@/components/SectionCard'
+import { DetailCard } from '@/components/DetailCard'
 import { DASHBOARD_SECTIONS } from '@/data/dashboard-sections'
+import { buildHealthScoreDetail } from '@/lib/detail-builders'
 import { cardSx, monoFont } from '@/theme'
 
 interface HealthScoreWidgetProps {
@@ -104,7 +106,7 @@ export function HealthScoreWidget({ healthScore, isConfigured = true }: HealthSc
       }
     >
       <Box sx={{ maxWidth: 360, mx: { xs: 'auto', md: 0 } }}>
-        <Box sx={{ ...cardSx(theme), textAlign: 'center' }}>
+        <DetailCard detail={buildHealthScoreDetail(healthScore)} sx={{ ...cardSx(theme), textAlign: 'center', pr: 5 }}>
           {isConfigured ? (
             <ScoreGauge score={score} />
           ) : (
@@ -150,7 +152,7 @@ export function HealthScoreWidget({ healthScore, isConfigured = true }: HealthSc
               ))}
             </Stack>
           )}
-        </Box>
+        </DetailCard>
       </Box>
     </SectionCard>
   )

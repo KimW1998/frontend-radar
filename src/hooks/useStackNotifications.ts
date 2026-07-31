@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from 'react'
 import type { DashboardData } from '@/types'
 import {
-  buildNotificationFingerprint,
   buildNotificationPayload,
+  buildNotificationFingerprint,
+  buildNotificationUrl,
   buildSlackMessageText,
 } from '@/lib/stack-notifications'
 import { sendSlackNotification } from '@/services/slack-notify'
@@ -61,6 +62,9 @@ export function useStackNotifications(data: DashboardData | undefined, projectNa
         })
         notification.onclick = () => {
           window.focus()
+          if (typeof window !== 'undefined') {
+            window.location.assign(buildNotificationUrl(window.location.origin, payload.issueLink.path))
+          }
           notification.close()
         }
         setLastNotificationFingerprint(fingerprint)

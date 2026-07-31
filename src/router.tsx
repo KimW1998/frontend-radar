@@ -83,6 +83,9 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
+  validateSearch: (search: Record<string, unknown>) => ({
+    focus: typeof search.focus === 'string' ? search.focus : undefined,
+  }),
   component: DashboardPage,
 })
 

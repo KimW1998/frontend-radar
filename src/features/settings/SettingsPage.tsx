@@ -156,6 +156,10 @@ export function SettingsPage() {
             title: 'Frontend Radar test message',
             body: 'Slack notifications are configured correctly.',
             fingerprint: 'test',
+            issueLink: {
+              path: '/?focus=test-alert#security-center',
+              label: 'View sample alert in Frontend Radar',
+            },
           },
           window.location.origin,
         ),

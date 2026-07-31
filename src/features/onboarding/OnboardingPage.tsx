@@ -178,7 +178,7 @@ export function OnboardingPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     }
     clearOnboardingWizard()
-    navigate({ to: '/' })
+    navigate({ to: '/', search: { focus: undefined } })
   }
 
   const canContinueFromImport =

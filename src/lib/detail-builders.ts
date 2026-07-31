@@ -1,8 +1,10 @@
+import type { TransitiveDependencyInsight } from '@/lib/transitive-deps'
 import type {
   BreakingChange,
   DataSourceStatus,
   Dependency,
   ExecutiveAction,
+  HealthScore,
   NodeStatus,
   RecommendedAction,
   SecurityAlert,
@@ -295,6 +297,102 @@ export function buildNodeDetail(status: NodeStatus): DetailContent {
     ],
     sourceUrl: 'https://nodejs.org/en/about/previous-releases',
     sourceLabel: 'Node release schedule',
+  }
+}
+
+export function buildTransitiveDependencyDetail(item: TransitiveDependencyInsight): DetailContent {
+  const hasVulns = item.vulnerabilityCount > 0
+  const fields: DetailField[] = [
+    { label: 'npm package', value: item.npmPackage, mono: true },
+    { label: 'Locked version', value: item.version, mono: true },
+    { label: 'Tree depth', value: String(item.depth) },
+    { label: 'Required by', value: item.requiredBy.join(', '), highlight: true },
+    {
+      label: 'Direct dependency',
+      value: 'No — pulled in transitively via your lockfile',
+    },
+  ]
+
+  if (hasVulns) {
+    fields.push(
+      { label: 'Advisories', value: String(item.vulnerabilityCount), highlight: true },
+      ...(item.topAdvisoryId ? [{ label: 'Top advisory', value: item.topAdvisoryId, mono: true }] : []),
+      ...(item.fixedVersion
+        ? [{ label: 'Fixed in', value: item.fixedVersion, mono: true, highlight: true }]
+        : [{ label: 'Fix version', value: 'Review parent package upgrades or npm audit' }]),
+    )
+  } else {
+    fields.push({ label: 'Advisories', value: 'None detected in scanned set' })
+  }
+
+  return {
+    title: item.npmPackage,
+    subtitle: `${item.version} · depth ${item.depth} · transitive`,
+    badge: item.highestSeverity
+      ? { label: item.highestSeverity, color: SEVERITY_COLORS[item.highestSeverity] }
+      : { label: 'Transitive', color: '#6B7280' },
+    tags: hasVulns ? ['Security'] : ['Infrastructure'],
+    fields,
+    body: hasVulns
+      ? `${item.npmPackage}@${item.version} is not a package you track directly. It is required by ${item.requiredBy.join(', ')} and has ${item.vulnerabilityCount} relevant advisory(ies) for the locked version.`
+      : `${item.npmPackage}@${item.version} appears in your lockfile at depth ${item.depth}, required by ${item.requiredBy.join(', ')}. No critical or high advisories were found for this version in the scanned set.`,
+    links: [
+      { label: 'npm package', url: `https://www.npmjs.com/package/${item.npmPackage}` },
+      { label: 'OSV advisories', url: `https://osv.dev/list?ecosystem=npm&q=${encodeURIComponent(item.npmPackage)}` },
+      ...(item.topAdvisoryId
+        ? [{ label: 'Top advisory', url: `https://osv.dev/vulnerability/${item.topAdvisoryId}` }]
+        : []),
+    ],
+    sourceUrl: item.topAdvisoryId
+      ? `https://osv.dev/vulnerability/${item.topAdvisoryId}`
+      : `https://www.npmjs.com/package/${item.npmPackage}`,
+    sourceLabel: item.topAdvisoryId ? 'View advisory' : 'View on npm',
+    enrich: { type: 'npm-package', packageName: item.npmPackage },
+  }
+}
+
+function healthScoreColor(score: number): string {
+  if (score >= 80) return '#22C55E'
+  if (score >= 60) return '#EAB308'
+  if (score >= 40) return '#F97316'
+  return '#EF4444'
+}
+
+function healthScoreLabel(score: number): string {
+  if (score >= 80) return 'Healthy'
+  if (score >= 60) return 'Needs attention'
+  if (score >= 40) return 'At risk'
+  return 'Critical'
+}
+
+function formatRecommendedActions(actions: RecommendedAction[]): string[] {
+  return actions.map((action) => `${action.action} (${action.impact} effort) — ${action.why}`)
+}
+
+export function buildHealthScoreDetail(healthScore: HealthScore): DetailContent {
+  const { score, securityWeight, outdatedWeight, nodeSupportWeight, breakingChangesWeight, recommendedActions } =
+    healthScore
+
+  return {
+    title: 'Stack health score',
+    subtitle: `${score}/100 · ${healthScoreLabel(score)}`,
+    badge: { label: healthScoreLabel(score), color: healthScoreColor(score) },
+    fields: [
+      { label: 'Overall score', value: String(score), highlight: true },
+      { label: 'Security (50%)', value: `${Math.round(securityWeight)}/50` },
+      { label: 'Outdated packages (25%)', value: `${Math.round(outdatedWeight)}/25` },
+      { label: 'Node support (15%)', value: `${Math.round(nodeSupportWeight)}/15` },
+      { label: 'Breaking changes (10%)', value: `${Math.round(breakingChangesWeight)}/10` },
+    ],
+    body: 'The health score combines security advisories, outdated dependencies, Node.js support status, and pending breaking changes into a single 0–100 rating.',
+    bullets: recommendedActions.length > 0 ? formatRecommendedActions(recommendedActions) : undefined,
+    sections: recommendedActions.length === 0
+      ? [{
+          title: 'Score breakdown',
+          content:
+            'Security counts for half the score, followed by outdated packages, Node support, and breaking changes. Improve the score by resolving critical vulnerabilities, upgrading outdated packages, and moving to a supported Node LTS.',
+        }]
+      : undefined,
   }
 }
 

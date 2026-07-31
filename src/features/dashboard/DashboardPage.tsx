@@ -12,6 +12,7 @@ import { VersionDriftBanner } from '@/components/VersionDriftBanner'
 import { GitHubSyncChangeBanner } from '@/components/GitHubSyncChangeBanner'
 import { TrackedPackagesEmptyBanner } from '@/components/TrackedPackagesEmptyBanner'
 import { useStackNotifications } from '@/hooks/useStackNotifications'
+import { useIssueFocusDeepLink } from '@/hooks/useIssueFocusDeepLink'
 import { DependencyWatchlist } from '@/features/dependencies/DependencyWatchlist'
 import { NodeUpgradeCenter } from '@/features/node/NodeUpgradeCenter'
 import { SecurityCenter } from '@/features/security/SecurityCenter'
@@ -44,6 +45,13 @@ export function DashboardPage() {
 
   const stackReady = Boolean(stackQuery.data)
   const nodeReady = Boolean(nodeQuery.data)
+
+  useIssueFocusDeepLink({
+    stackData: data,
+    nodeStatus: data?.nodeStatus,
+    transitiveDependencies: stackQuery.data?.transitiveDependencies,
+  })
+
   const queriesEnabled = Boolean(activeProject)
   const initialLoad =
     queriesEnabled &&
