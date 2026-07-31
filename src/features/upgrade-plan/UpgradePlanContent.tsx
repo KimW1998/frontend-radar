@@ -5,6 +5,7 @@ import SettingsIcon from '@mui/icons-material/Settings'
 import { Link } from '@tanstack/react-router'
 import type { Dependency, UpgradePlanStep } from '@/types'
 import { UpgradeCommandRow } from '@/components/UpgradeCommandRow'
+import { CopyTextButton } from '@/components/CopyTextButton'
 import { CopyUpgradeButton } from '@/components/CopyUpgradeButton'
 import {
   buildFullUpgradeScript,
@@ -42,12 +43,9 @@ export function UpgradePlanContent({
   const { togglePackageCompleted, markStepCompleted, isPackageCompleted } = useUpgradePlanStore()
   const depsWithBlockers = dependencies.filter((dep) => (dep.upgradeBlockers?.length ?? 0) > 0)
   const fullScript = buildFullUpgradeScript(upgradePlan, packageManager)
-
-  const handleExportChecklist = async () => {
-    if (!activeProject) return
-    const markdown = buildUpgradeChecklistMarkdown(activeProject.name, upgradePlan, packageManager)
-    await navigator.clipboard.writeText(markdown)
-  }
+  const checklistMarkdown = activeProject
+    ? buildUpgradeChecklistMarkdown(activeProject.name, upgradePlan, packageManager)
+    : ''
 
   return (
     <Stack spacing={2}>
@@ -63,16 +61,24 @@ export function UpgradePlanContent({
           >
             Manage tracked packages
           </Button>
-          <Button
+          <CopyTextButton
             size="small"
             variant="outlined"
-            onClick={async () => navigator.clipboard.writeText(fullScript)}
+            text={fullScript}
+            disabled={!fullScript.trim()}
+            snackbarMessage="Upgrade script copied"
           >
             Copy full upgrade script
-          </Button>
-          <Button size="small" variant="outlined" onClick={handleExportChecklist}>
+          </CopyTextButton>
+          <CopyTextButton
+            size="small"
+            variant="outlined"
+            text={checklistMarkdown}
+            disabled={!checklistMarkdown.trim()}
+            snackbarMessage="PR checklist copied"
+          >
             Copy PR checklist
-          </Button>
+          </CopyTextButton>
         </Stack>
       )}
 

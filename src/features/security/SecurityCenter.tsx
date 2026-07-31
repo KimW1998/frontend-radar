@@ -6,6 +6,8 @@ import { EmptySectionState } from '@/components/EmptySectionState'
 import { SectionCard } from '@/components/SectionCard'
 import { UpgradeCommandRow } from '@/components/UpgradeCommandRow'
 import { SeverityBadge } from '@/components/Badges'
+import { SnoozeAlertButton } from '@/components/SnoozeAlertButton'
+import { securityAlertSnoozeKey } from '@/lib/alert-snooze'
 import { DetailCard } from '@/components/DetailCard'
 import { buildSecurityDetail } from '@/lib/detail-builders'
 import { formatUpgradeCommand } from '@/lib/upgrade-command'
@@ -76,6 +78,7 @@ export function SecurityCenter({ alerts }: SecurityCenterProps) {
               <Typography variant="body1" sx={{ fontWeight: 600, flex: 1 }}>
                 {alert.title}
               </Typography>
+              <SnoozeAlertButton alertKey={securityAlertSnoozeKey(alert.id)} />
               <Typography variant="caption" sx={{ fontFamily: monoFont, color: 'text.secondary' }}>
                 {alert.publishedAt}
               </Typography>

@@ -8,6 +8,7 @@ import {
   detectVersionDrift,
 } from '@/lib/version-drift'
 import { computeImportPreview, type ImportPreview } from '@/lib/import-preview'
+import { pruneExpiredSnoozes, snoozeUntil } from '@/lib/alert-snooze'
 import { createLockfileGraphSnapshot } from '@/lib/lockfile-graph'
 import {
   parseStackImport,
@@ -48,6 +49,7 @@ interface SettingsState {
         | 'lockfileGraph'
         | 'githubSync'
         | 'lastGitHubSyncChange'
+        | 'snoozedAlerts'
       >
     >,
   ) => void
@@ -79,6 +81,9 @@ interface SettingsState {
     source?: 'auto' | 'manual'
   }) => StackImportResult
   dismissGitHubSyncChange: () => void
+  snoozeAlert: (alertKey: string, days?: number) => void
+  clearSnooze: (alertKey: string) => void
+  trackRecommendedPackages: (npmPackages: string[]) => number
 }
 
 function touchProject(project: Project, patch: Partial<Project>): Project {
@@ -477,10 +482,63 @@ export const useSettingsStore = create<SettingsState>()(
           ),
         )
       },
+
+      snoozeAlert: (alertKey, days = 30) => {
+        const trimmed = alertKey.trim()
+        if (!trimmed) return
+        set((state) =>
+          updateActiveProject(state, (p) => {
+            const snoozedAlerts = pruneExpiredSnoozes(p.snoozedAlerts)
+            return touchProject(p, {
+              snoozedAlerts: {
+                ...snoozedAlerts,
+                [trimmed]: snoozeUntil(days),
+              },
+            })
+          }),
+        )
+      },
+
+      clearSnooze: (alertKey) => {
+        const trimmed = alertKey.trim()
+        if (!trimmed) return
+        set((state) =>
+          updateActiveProject(state, (p) => {
+            const snoozedAlerts = pruneExpiredSnoozes(p.snoozedAlerts)
+            if (!snoozedAlerts[trimmed]) return p
+            const next = { ...snoozedAlerts }
+            delete next[trimmed]
+            return touchProject(p, { snoozedAlerts: next })
+          }),
+        )
+      },
+
+      trackRecommendedPackages: (npmPackages) => {
+        const active = getActiveProject(get())
+        if (!active || npmPackages.length === 0) return 0
+
+        const names = new Set(npmPackages.map((pkg) => pkg.trim()).filter(Boolean))
+        const idsToTrack = active.customPackages
+          .filter((pkg) => names.has(pkg.npmPackage))
+          .map((pkg) => pkg.id)
+
+        if (idsToTrack.length === 0) return 0
+
+        set((state) =>
+          updateActiveProject(state, (p) => {
+            const merged = new Set([...p.trackedPackageIds, ...idsToTrack])
+            return touchProject(p, {
+              trackedPackageIds: [...merged],
+            })
+          }),
+        )
+
+        return idsToTrack.length
+      },
     }),
     {
       name: 'frontend-radar-settings',
-      version: 8,
+      version: 9,
       migrate: (persisted, version) => {
         if (version === 0) {
           const old = persisted as LegacySettingsState
@@ -530,6 +588,16 @@ export const useSettingsStore = create<SettingsState>()(
                 p.trackedPackageIds.length === 0 && p.customPackages.length > 0
                   ? p.customPackages.map((pkg) => pkg.id)
                   : resolveTrackedPackageIds(p.trackedPackageIds, p.customPackages),
+            })),
+          }
+        }
+        if (version === 8) {
+          const state = persisted as SettingsState
+          return {
+            ...state,
+            projects: state.projects.map((p) => ({
+              ...p,
+              snoozedAlerts: p.snoozedAlerts ?? {},
             })),
           }
         }

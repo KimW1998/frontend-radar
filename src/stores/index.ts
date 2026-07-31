@@ -46,6 +46,9 @@ interface UiState {
   packageManager: PackageManager
   notificationsEnabled: boolean
   lastNotificationFingerprint: string
+  slackWebhookUrl: string
+  slackNotificationsEnabled: boolean
+  lastSlackNotificationFingerprint: string
   toggleSidebar: () => void
   closeSidebar: () => void
   setSidebarOpen: (open: boolean) => void
@@ -54,6 +57,9 @@ interface UiState {
   setPackageManager: (manager: PackageManager) => void
   setNotificationsEnabled: (enabled: boolean) => void
   setLastNotificationFingerprint: (fingerprint: string) => void
+  setSlackWebhookUrl: (url: string) => void
+  setSlackNotificationsEnabled: (enabled: boolean) => void
+  setLastSlackNotificationFingerprint: (fingerprint: string) => void
 }
 
 export const useUiStore = create<UiState>()(
@@ -64,6 +70,9 @@ export const useUiStore = create<UiState>()(
       packageManager: 'npm',
       notificationsEnabled: false,
       lastNotificationFingerprint: '',
+      slackWebhookUrl: '',
+      slackNotificationsEnabled: false,
+      lastSlackNotificationFingerprint: '',
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       closeSidebar: () => set({ sidebarOpen: false }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -75,6 +84,10 @@ export const useUiStore = create<UiState>()(
       setPackageManager: (manager) => set({ packageManager: manager }),
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
       setLastNotificationFingerprint: (fingerprint) => set({ lastNotificationFingerprint: fingerprint }),
+      setSlackWebhookUrl: (url) => set({ slackWebhookUrl: url.trim() }),
+      setSlackNotificationsEnabled: (enabled) => set({ slackNotificationsEnabled: enabled }),
+      setLastSlackNotificationFingerprint: (fingerprint) =>
+        set({ lastSlackNotificationFingerprint: fingerprint }),
     }),
     {
       name: 'frontend-radar-ui',
@@ -83,6 +96,9 @@ export const useUiStore = create<UiState>()(
         packageManager: state.packageManager,
         notificationsEnabled: state.notificationsEnabled,
         lastNotificationFingerprint: state.lastNotificationFingerprint,
+        slackWebhookUrl: state.slackWebhookUrl,
+        slackNotificationsEnabled: state.slackNotificationsEnabled,
+        lastSlackNotificationFingerprint: state.lastSlackNotificationFingerprint,
       }),
     },
   ),

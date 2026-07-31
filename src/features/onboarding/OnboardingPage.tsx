@@ -32,6 +32,8 @@ import {
 } from '@/lib/onboarding-wizard'
 import { useActiveProject } from '@/hooks/useActiveProject'
 import { DiscoveredPackagesPrompt } from '@/components/DiscoveredPackagesPrompt'
+import { FrameworkPresetBanner } from '@/components/FrameworkPresetBanner'
+import { detectFrameworkPreset } from '@/lib/framework-presets'
 import type { StackImportResult } from '@/services/stack-import'
 import type { GitHubImportPayload } from '@/types/stack-import-ui'
 import { useSettingsStore } from '@/stores'
@@ -46,7 +48,7 @@ export function OnboardingPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const activeProject = useActiveProject()
-  const { createProject, setActiveProject, updateProject, importFromStack, trackDiscoveredPackages, projects } =
+  const { createProject, setActiveProject, updateProject, importFromStack, trackDiscoveredPackages, trackRecommendedPackages, projects } =
     useSettingsStore()
 
   const [step, setStep] = useState(initialWizardStep)
@@ -55,6 +57,7 @@ export function OnboardingPage() {
   const [packageJsonInput, setPackageJsonInput] = useState('')
   const [lockfileInput, setLockfileInput] = useState('')
   const [importResult, setImportResult] = useState<StackImportResult | null>(null)
+  const [frameworkPreset, setFrameworkPreset] = useState<ReturnType<typeof detectFrameworkPreset>>(null)
   const [nodeVersion, setNodeVersion] = useState(initialWizardNodeVersion)
 
   const workingProject = useMemo(() => {
@@ -134,11 +137,17 @@ export function OnboardingPage() {
     ensureWorkingProject()
     const result = importFromStack({ packageJson: packageJsonInput, lockfile: lockfileInput })
     setImportResult(result)
+    setFrameworkPreset(
+      detectFrameworkPreset(result.packagesFromPackageJson.map((pkg) => pkg.npmPackage)),
+    )
     if (result.nodeVersion && !nodeVersion.trim()) setNodeVersion(result.nodeVersion)
   }
 
   const handleGitHubImportSuccess = (result: StackImportResult, files: GitHubImportPayload) => {
     setImportResult(result)
+    setFrameworkPreset(
+      detectFrameworkPreset(result.packagesFromPackageJson.map((pkg) => pkg.npmPackage)),
+    )
     setPackageJsonInput(files.packageJson)
     if (files.lockfile) setLockfileInput(files.lockfile)
     if (result.nodeVersion && !nodeVersion.trim()) setNodeVersion(result.nodeVersion)
@@ -319,6 +328,14 @@ export function OnboardingPage() {
                       />
                     ))}
                   </Stack>
+                )}
+                {frameworkPreset && (
+                  <FrameworkPresetBanner
+                    match={frameworkPreset}
+                    onTrackRecommended={() => {
+                      trackRecommendedPackages(frameworkPreset.preset.recommendedPackages)
+                    }}
+                  />
                 )}
                 <DiscoveredPackagesPrompt
                   importResult={importResult}

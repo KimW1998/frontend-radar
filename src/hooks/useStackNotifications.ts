@@ -1,56 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import type { DashboardData } from '@/types'
+import {
+  buildNotificationFingerprint,
+  buildNotificationPayload,
+  buildSlackMessageText,
+} from '@/lib/stack-notifications'
+import { sendSlackNotification } from '@/services/slack-notify'
 import { useUiStore } from '@/stores'
 import { useSettingsStore } from '@/stores/settings-store'
-
-function buildNotificationFingerprint(data: DashboardData): string {
-  const parts = [
-    ...data.securityAlerts
-      .filter((alert) => alert.severity === 'critical' || alert.severity === 'high')
-      .map((alert) => `sec:${alert.id}`),
-    ...data.dependencies
-      .filter((dep) => dep.riskLevel === 'major' || dep.riskLevel === 'security')
-      .map((dep) => `dep:${dep.id}:${dep.recommendedVersion}`),
-    data.nodeStatus.status !== 'supported' ? `node:${data.nodeStatus.status}:${data.nodeStatus.latestLts.version}` : '',
-  ].filter(Boolean)
-
-  return parts.sort().join('|')
-}
-
-function buildNotificationBody(data: DashboardData): { title: string; body: string } | null {
-  const critical = data.securityAlerts.filter((alert) => alert.severity === 'critical')
-  if (critical.length > 0) {
-    return {
-      title: 'Critical security alert',
-      body: critical[0]!.title,
-    }
-  }
-
-  const major = data.dependencies.filter((dep) => dep.riskLevel === 'major')
-  if (major.length > 0) {
-    return {
-      title: 'Major upgrade available',
-      body: `${major[0]!.name} can upgrade to ${major[0]!.recommendedVersion}`,
-    }
-  }
-
-  if (data.nodeStatus.status === 'end-of-life') {
-    return {
-      title: 'Node.js end of life',
-      body: `Upgrade to Node ${data.nodeStatus.latestLts.version} LTS`,
-    }
-  }
-
-  const securityDeps = data.dependencies.filter((dep) => dep.riskLevel === 'security')
-  if (securityDeps.length > 0) {
-    return {
-      title: 'Vulnerable package detected',
-      body: `${securityDeps[0]!.name} has known security issues`,
-    }
-  }
-
-  return null
-}
+import { isAlertSnoozed, pruneExpiredSnoozes, securityAlertSnoozeKey } from '@/lib/alert-snooze'
 
 export type NotificationPermissionResult = 'granted' | 'denied' | 'default' | 'unsupported'
 
@@ -65,37 +23,73 @@ export function useStackNotifications(data: DashboardData | undefined, projectNa
   const notificationsEnabled = useUiStore((s) => s.notificationsEnabled)
   const lastNotificationFingerprint = useUiStore((s) => s.lastNotificationFingerprint)
   const setLastNotificationFingerprint = useUiStore((s) => s.setLastNotificationFingerprint)
+  const slackWebhookUrl = useUiStore((s) => s.slackWebhookUrl)
+  const slackNotificationsEnabled = useUiStore((s) => s.slackNotificationsEnabled)
+  const lastSlackNotificationFingerprint = useUiStore((s) => s.lastSlackNotificationFingerprint)
+  const setLastSlackNotificationFingerprint = useUiStore((s) => s.setLastSlackNotificationFingerprint)
   const activeProjectId = useSettingsStore((s) => s.activeProjectId)
+  const rawSnoozedAlerts = useSettingsStore((s) => {
+    const project = s.projects.find((p) => p.id === s.activeProjectId)
+    return project?.snoozedAlerts
+  })
+  const snoozedAlerts = useMemo(
+    () => pruneExpiredSnoozes(rawSnoozedAlerts),
+    [rawSnoozedAlerts],
+  )
 
   useEffect(() => {
-    if (!data || !notificationsEnabled || !activeProjectId) return
-    if (typeof Notification === 'undefined') return
-    if (Notification.permission !== 'granted') return
+    if (!data || !activeProjectId) return
 
-    const fingerprint = `${activeProjectId}:${buildNotificationFingerprint(data)}`
-    if (!fingerprint.endsWith(':') && fingerprint === lastNotificationFingerprint) return
-
-    const payload = buildNotificationBody(data)
-    if (!payload) return
-
-    const notification = new Notification(`Frontend Radar${projectName ? ` — ${projectName}` : ''}`, {
-      body: payload.body,
-      tag: fingerprint,
-    })
-
-    notification.onclick = () => {
-      window.focus()
-      notification.close()
+    const filteredData: DashboardData = {
+      ...data,
+      securityAlerts: data.securityAlerts.filter(
+        (alert) => !isAlertSnoozed(securityAlertSnoozeKey(alert.id), snoozedAlerts),
+      ),
     }
 
-    setLastNotificationFingerprint(fingerprint)
+    const fingerprint = buildNotificationFingerprint(activeProjectId, filteredData)
+    if (fingerprint.endsWith(':')) return
+
+    const payload = buildNotificationPayload(filteredData, projectName)
+    if (!payload) return
+
+    if (notificationsEnabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      if (fingerprint !== lastNotificationFingerprint) {
+        const notification = new Notification(payload.title, {
+          body: payload.body,
+          tag: fingerprint,
+        })
+        notification.onclick = () => {
+          window.focus()
+          notification.close()
+        }
+        setLastNotificationFingerprint(fingerprint)
+      }
+    }
+
+    if (slackNotificationsEnabled && slackWebhookUrl.trim() && fingerprint !== lastSlackNotificationFingerprint) {
+      const siteUrl = typeof window !== 'undefined' ? window.location.origin : undefined
+      void sendSlackNotification(
+        slackWebhookUrl.trim(),
+        buildSlackMessageText(payload, siteUrl),
+      )
+        .then(() => setLastSlackNotificationFingerprint(fingerprint))
+        .catch(() => {
+          // Slack delivery failures should not break the dashboard.
+        })
+    }
   }, [
     data,
     notificationsEnabled,
     lastNotificationFingerprint,
     setLastNotificationFingerprint,
+    slackWebhookUrl,
+    slackNotificationsEnabled,
+    lastSlackNotificationFingerprint,
+    setLastSlackNotificationFingerprint,
     activeProjectId,
     projectName,
+    snoozedAlerts,
   ])
 
   return {

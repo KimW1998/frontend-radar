@@ -6,6 +6,8 @@ import { UpgradeCommandRow } from '@/components/UpgradeCommandRow'
 import { SeverityBadge } from '@/components/Badges'
 import { formatUpgradeCommand } from '@/lib/upgrade-command'
 import { useUiStore } from '@/stores'
+import { SnoozeAlertButton } from '@/components/SnoozeAlertButton'
+import { securityAlertSnoozeKey } from '@/lib/alert-snooze'
 import { monoFont } from '@/theme'
 
 interface SecurityAlertCardContentProps {
@@ -39,6 +41,7 @@ export function SecurityAlertCardContent({
         <Typography variant="caption" sx={{ fontFamily: monoFont, color: 'text.secondary' }}>
           {alert.publishedAt}
         </Typography>
+        <SnoozeAlertButton alertKey={securityAlertSnoozeKey(alert.id)} />
       </Stack>
 
       <Box

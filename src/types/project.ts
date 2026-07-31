@@ -25,6 +25,8 @@ export interface Project {
   githubSync?: GitHubSyncConfig
   /** Shown on dashboard after GitHub detected stack changes */
   lastGitHubSyncChange?: import('@/types/github-sync').GitHubSyncChangeNotice
+  /** alertKey -> snooze expiry ISO timestamp */
+  snoozedAlerts?: Record<string, string>
   createdAt: string
   updatedAt: string
 }

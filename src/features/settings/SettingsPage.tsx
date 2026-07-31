@@ -33,6 +33,11 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { getConfiguredPackageCount } from '@/lib/section-empty'
 import { getTrackedPackages, hasNoTrackedPackages } from '@/lib/watchlist'
 import type { ImportPreview } from '@/lib/import-preview'
+import { FrameworkPresetBanner } from '@/components/FrameworkPresetBanner'
+import { detectFrameworkPreset } from '@/lib/framework-presets'
+import { countActiveSnoozes, pruneExpiredSnoozes } from '@/lib/alert-snooze'
+import { sendSlackNotification } from '@/services/slack-notify'
+import { buildSlackMessageText } from '@/lib/stack-notifications'
 import { hasActiveDrift } from '@/lib/version-drift'
 import { useStackNotifications } from '@/hooks/useStackNotifications'
 import { PACKAGE_MANAGER_LABELS, type PackageManager } from '@/lib/upgrade-command'
@@ -59,12 +64,18 @@ export function SettingsPage() {
     checkStackDrift,
     trackDiscoveredPackages,
     clearDriftReport,
+    trackRecommendedPackages,
+    clearSnooze,
   } = useSettingsStore()
   const {
     packageManager,
     setPackageManager,
     notificationsEnabled,
     setNotificationsEnabled,
+    slackWebhookUrl,
+    setSlackWebhookUrl,
+    slackNotificationsEnabled,
+    setSlackNotificationsEnabled,
   } = useUiStore()
   const { requestPermission } = useStackNotifications(undefined, activeProject?.name)
 
@@ -77,6 +88,8 @@ export function SettingsPage() {
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
   const [showManual, setShowManual] = useState(false)
   const [notificationNotice, setNotificationNotice] = useState<string | null>(null)
+  const [slackNotice, setSlackNotice] = useState<string | null>(null)
+  const [frameworkPreset, setFrameworkPreset] = useState<ReturnType<typeof detectFrameworkPreset>>(null)
 
   useEffect(() => {
     if (typeof Notification === 'undefined') return
@@ -99,6 +112,9 @@ export function SettingsPage() {
     const result = importFromStack({ packageJson: packageJsonInput, lockfile: lockfileInput })
     setImportResult(result)
     setImportPreview(null)
+    setFrameworkPreset(
+      detectFrameworkPreset(result.packagesFromPackageJson.map((pkg) => pkg.npmPackage)),
+    )
     if (result.packagesFromPackageJson.length > 0) {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     }
@@ -106,6 +122,9 @@ export function SettingsPage() {
 
   const handleGitHubImportSuccess = (result: StackImportResult, files: GitHubImportPayload) => {
     setImportResult(result)
+    setFrameworkPreset(
+      detectFrameworkPreset(result.packagesFromPackageJson.map((pkg) => pkg.npmPackage)),
+    )
     setPackageJsonInput(files.packageJson)
     if (files.lockfile) setLockfileInput(files.lockfile)
     if (result.packagesFromPackageJson.length > 0) {
@@ -122,6 +141,30 @@ export function SettingsPage() {
     activeProject?.trackedPackageIds,
     activeProject?.customPackages,
   )
+  const activeSnoozes = pruneExpiredSnoozes(activeProject?.snoozedAlerts)
+
+  const handleTestSlack = async () => {
+    if (!slackWebhookUrl.trim()) {
+      setSlackNotice('Add your Slack incoming webhook URL first.')
+      return
+    }
+    try {
+      await sendSlackNotification(
+        slackWebhookUrl.trim(),
+        buildSlackMessageText(
+          {
+            title: 'Frontend Radar test message',
+            body: 'Slack notifications are configured correctly.',
+            fingerprint: 'test',
+          },
+          window.location.origin,
+        ),
+      )
+      setSlackNotice('Test message sent to Slack.')
+    } catch (error) {
+      setSlackNotice(error instanceof Error ? error.message : 'Could not send Slack test message.')
+    }
+  }
 
   if (projects.length === 0) {
     return (
@@ -207,8 +250,81 @@ export function SettingsPage() {
               {notificationNotice}
             </Alert>
           )}
+
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2.5, mb: 1 }}>
+            Slack alerts use an incoming webhook URL from your Slack workspace.
+          </Typography>
+          <TextField
+            size="small"
+            fullWidth
+            label="Slack webhook URL"
+            placeholder="https://hooks.slack.com/services/..."
+            value={slackWebhookUrl}
+            onChange={(event) => setSlackWebhookUrl(event.target.value)}
+            sx={{ mb: 1.5, '& input': { fontFamily: monoFont, fontSize: '0.8125rem' } }}
+          />
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={slackNotificationsEnabled}
+                  onChange={(_, checked) => {
+                    setSlackNotificationsEnabled(checked)
+                    if (checked) setSlackNotice(null)
+                  }}
+                  disabled={!slackWebhookUrl.trim()}
+                />
+              }
+              label="Send Slack messages for critical CVEs, major upgrades, and Node EOL"
+            />
+            <Button size="small" variant="outlined" onClick={handleTestSlack} disabled={!slackWebhookUrl.trim()}>
+              Send test message
+            </Button>
+          </Stack>
+          {slackNotice && (
+            <Alert severity={slackNotice.includes('correctly') || slackNotice.includes('sent') ? 'success' : 'warning'} sx={{ mt: 1 }}>
+              {slackNotice}
+            </Alert>
+          )}
         </CardContent>
       </Card>
+
+      {activeProject && countActiveSnoozes(activeSnoozes) > 0 && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h3" sx={{ mb: 1 }}>
+              Snoozed alerts — {activeProject.name}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+              These alerts are hidden from the dashboard until their snooze expires.
+            </Typography>
+            <Stack spacing={1}>
+              {Object.entries(activeSnoozes).map(([alertKey, until]) => (
+                <Stack
+                  key={alertKey}
+                  direction="row"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  spacing={1}
+                  sx={{ p: 1.25, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}
+                >
+                  <Box>
+                    <Typography variant="body2" sx={{ fontFamily: monoFont }}>
+                      {alertKey}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      Until {new Date(until).toLocaleString()}
+                    </Typography>
+                  </Box>
+                  <Button size="small" onClick={() => clearSnooze(alertKey)}>
+                    Restore
+                  </Button>
+                </Stack>
+              ))}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -370,6 +486,16 @@ export function SettingsPage() {
 
               {importPreview && (
                 <ImportPreviewAlert preview={importPreview} title="Changes if you apply this import" />
+              )}
+
+              {frameworkPreset && importResult && (
+                <FrameworkPresetBanner
+                  match={frameworkPreset}
+                  onTrackRecommended={() => {
+                    const tracked = trackRecommendedPackages(frameworkPreset.preset.recommendedPackages)
+                    if (tracked > 0) queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+                  }}
+                />
               )}
 
               {activeProject.lastDriftReport && hasActiveDrift(activeProject.lastDriftReport) && (

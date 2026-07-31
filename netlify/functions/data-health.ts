@@ -8,7 +8,7 @@ export default async () => {
   return Response.json({
     githubToken,
     githubOAuth,
-    proxies: ['github-releases', 'github-release-history', 'github-repo-files', 'github-user-repos', 'github-oauth-callback', 'rss'],
+    proxies: ['github-releases', 'github-release-history', 'github-repo-files', 'github-user-repos', 'github-oauth-callback', 'rss', 'slack-notify'],
   })
 }
 

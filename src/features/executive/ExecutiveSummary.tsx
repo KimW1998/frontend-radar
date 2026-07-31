@@ -12,6 +12,7 @@ import {
 import { SecurityAlertCardContent } from '@/components/SecurityAlertCardContent'
 import { buildDependencyDetail, buildExecutiveDetail, buildNodeDetail, buildSecurityDetail } from '@/lib/detail-builders'
 import { resolveExecutiveActionContext } from '@/lib/executive-action-context'
+import { SnoozeAlertButton } from '@/components/SnoozeAlertButton'
 import { resolveSectionEmpty, useIsStackConfigured } from '@/lib/section-empty'
 import { useFilterStore, matchesFilter } from '@/stores'
 import { cardSx, monoFont } from '@/theme'
@@ -76,6 +77,9 @@ export function ExecutiveSummary({
                 detail={buildDependencyDetail(context.dep)}
                 sx={dependencyCardSx(context.dep)}
               >
+                <Stack direction="row" justifyContent="flex-end" sx={{ mb: 0.5 }}>
+                  <SnoozeAlertButton alertKey={action.id} />
+                </Stack>
                 <DependencyPackageCardContent dep={context.dep} urgency={action.urgency} />
               </DetailCard>
             )
@@ -104,6 +108,9 @@ export function ExecutiveSummary({
                 detail={buildNodeDetail(context.nodeStatus)}
                 sx={{ ...cardSx(theme), pr: 5 }}
               >
+                <Stack direction="row" justifyContent="flex-end" sx={{ mb: 0.5 }}>
+                  <SnoozeAlertButton alertKey={action.id} />
+                </Stack>
                 <NodeAttentionCardContent nodeStatus={context.nodeStatus} urgency={action.urgency} />
               </DetailCard>
             )
@@ -111,9 +118,12 @@ export function ExecutiveSummary({
 
           return (
             <DetailCard key={action.id} detail={buildExecutiveDetail(action)} sx={{ ...cardSx(theme), pr: 5 }}>
-              <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', mb: 1 }}>
-                {action.title}
-              </Typography>
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1} mb={1}>
+                <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', flex: 1 }}>
+                  {action.title}
+                </Typography>
+                <SnoozeAlertButton alertKey={action.id} />
+              </Stack>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 1.5 }}>
                 <Box>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>Why</Typography>

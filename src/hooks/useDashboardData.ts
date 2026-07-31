@@ -7,6 +7,7 @@ import {
 } from '@/services/dashboard'
 import { calculateHealthScore } from '@/services/health'
 import { getConfiguredPackageCount } from '@/lib/section-empty'
+import { isAlertSnoozed, pruneExpiredSnoozes, securityAlertSnoozeKey } from '@/lib/alert-snooze'
 import { useSettingsStore } from '@/stores'
 import type { CustomPackageEntry } from '@/types/custom-package'
 
@@ -27,6 +28,10 @@ export function useDashboardData(enabled = true) {
   const customPackages = activeProject?.customPackages ?? EMPTY_CUSTOM_PACKAGES
   const lockfileGraph = activeProject?.lockfileGraph
   const stableConfiguredVersions = activeProject?.configuredVersions ?? EMPTY_VERSIONS
+  const snoozedAlerts = useMemo(
+    () => pruneExpiredSnoozes(activeProject?.snoozedAlerts),
+    [activeProject?.snoozedAlerts],
+  )
   const input = useMemo(
     () => ({
       configuredVersions: stableConfiguredVersions,
@@ -69,8 +74,32 @@ export function useDashboardData(enabled = true) {
 
   const isConfigured = getConfiguredPackageCount(stableConfiguredVersions, trackedPackageIds, customPackages) > 0
 
+  const filteredStackData = useMemo(() => {
+    if (!stackQuery.data) return undefined
+    return {
+      ...stackQuery.data,
+      securityAlerts: stackQuery.data.securityAlerts.filter(
+        (alert) => !isAlertSnoozed(securityAlertSnoozeKey(alert.id), snoozedAlerts),
+      ),
+    }
+  }, [stackQuery.data, snoozedAlerts])
+
+  const executiveActions = useMemo(() => {
+    if (!isConfigured || !filteredStackData || !nodeQuery.data) return []
+    const nodeStatus =
+      isAlertSnoozed('node-upgrade', snoozedAlerts) ||
+      isAlertSnoozed('node:upgrade', snoozedAlerts)
+        ? null
+        : nodeQuery.data.nodeStatus
+    return buildExecutiveActions(
+      filteredStackData.dependencies,
+      filteredStackData.securityAlerts,
+      nodeStatus,
+    ).filter((action) => !isAlertSnoozed(action.id, snoozedAlerts))
+  }, [isConfigured, filteredStackData, nodeQuery.data, snoozedAlerts])
+
   const healthScore = useMemo(() => {
-    if (!isConfigured || !stackQuery.data || !nodeQuery.data) {
+    if (!isConfigured || !filteredStackData || !nodeQuery.data) {
       return {
         score: 0,
         securityWeight: 0,
@@ -80,22 +109,18 @@ export function useDashboardData(enabled = true) {
         recommendedActions: [],
       }
     }
+    const nodeStatus =
+      isAlertSnoozed('node-upgrade', snoozedAlerts) ||
+      isAlertSnoozed('node:upgrade', snoozedAlerts)
+        ? { ...nodeQuery.data.nodeStatus, status: 'supported' as const }
+        : nodeQuery.data.nodeStatus
     return calculateHealthScore(
-      stackQuery.data.dependencies,
-      nodeQuery.data.nodeStatus,
-      stackQuery.data.breakingChanges,
-      stackQuery.data.securityAlerts,
+      filteredStackData.dependencies,
+      nodeStatus,
+      filteredStackData.breakingChanges,
+      filteredStackData.securityAlerts,
     )
-  }, [isConfigured, stackQuery.data, nodeQuery.data])
-
-  const executiveActions = useMemo(() => {
-    if (!isConfigured || !stackQuery.data || !nodeQuery.data) return []
-    return buildExecutiveActions(
-      stackQuery.data.dependencies,
-      stackQuery.data.securityAlerts,
-      nodeQuery.data.nodeStatus,
-    )
-  }, [isConfigured, stackQuery.data, nodeQuery.data])
+  }, [isConfigured, filteredStackData, nodeQuery.data, snoozedAlerts])
 
   const dataSources = useMemo(
     () => [...(stackQuery.data?.dataSources ?? []), ...(nodeQuery.data?.dataSources ?? [])],
@@ -113,12 +138,12 @@ export function useDashboardData(enabled = true) {
   const isRefetching = nodeQuery.isRefetching || stackQuery.isRefetching
 
   const data =
-    nodeQuery.data && stackQuery.data
+    nodeQuery.data && filteredStackData
       ? {
-          dependencies: stackQuery.data.dependencies,
-          securityAlerts: stackQuery.data.securityAlerts,
-          breakingChanges: stackQuery.data.breakingChanges,
-          upgradePlan: stackQuery.data.upgradePlan,
+          dependencies: filteredStackData.dependencies,
+          securityAlerts: filteredStackData.securityAlerts,
+          breakingChanges: filteredStackData.breakingChanges,
+          upgradePlan: filteredStackData.upgradePlan,
           nodeStatus: nodeQuery.data.nodeStatus,
           executiveActions,
           healthScore,
@@ -126,6 +151,10 @@ export function useDashboardData(enabled = true) {
           lastUpdated: lastUpdated ?? new Date().toISOString(),
         }
       : undefined
+
+  const stackQueryForUi = filteredStackData
+    ? { ...stackQuery, data: filteredStackData }
+    : stackQuery
 
   const refetch = async () => {
     await Promise.all([
@@ -138,7 +167,7 @@ export function useDashboardData(enabled = true) {
   return {
     data,
     nodeQuery,
-    stackQuery,
+    stackQuery: stackQueryForUi,
     isLoading,
     isFetching,
     isError,
